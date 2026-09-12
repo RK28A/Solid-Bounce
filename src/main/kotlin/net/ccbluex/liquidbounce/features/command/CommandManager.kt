@@ -14,9 +14,12 @@ package net.ccbluex.liquidbounce.features.command
 import net.ccbluex.liquidbounce.event.events.ChatSendEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.Listenable
+import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ModuleManager
+import net.ccbluex.liquidbounce.features.ui.clickgui.ClickGuiScreen
 import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.mc
 import org.lwjgl.glfw.GLFW
 
 /**
@@ -43,7 +46,19 @@ object CommandManager : Listenable {
     private fun execute(args: List<String>) {
         when (args.getOrNull(0)?.lowercase()) {
             "", null, "help" -> {
-                chat("Commands: t/toggle <module>, bind <module> <key>, list [category], modules, panic")
+                chat("Commands: t/toggle <module>, bind <module> <key>, list [category], modules, panic, gui, save, load")
+            }
+
+            "gui", "clickgui" -> mc.setScreen(ClickGuiScreen())
+
+            "save" -> {
+                ConfigSystem.save()
+                chat("Config saved.")
+            }
+
+            "load" -> {
+                ConfigSystem.load()
+                chat("Config loaded.")
             }
 
             "t", "toggle" -> {
