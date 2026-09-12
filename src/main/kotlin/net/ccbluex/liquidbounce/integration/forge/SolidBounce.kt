@@ -1,0 +1,58 @@
+/*
+ * This file is part of Solid-Bounce, a Forge 1.20.1 port of LiquidBounce.
+ *
+ * LiquidBounce is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Original work Copyright (c) 2015 - 2024 CCBlueX.
+ * Forge port modifications Copyright (c) 2025 Solid-Bounce contributors.
+ */
+package net.ccbluex.liquidbounce.integration.forge
+
+import net.ccbluex.liquidbounce.features.command.CommandManager
+import net.ccbluex.liquidbounce.features.hud.HudRenderer
+import net.ccbluex.liquidbounce.features.module.ModuleManager
+import net.ccbluex.liquidbounce.features.module.modules.ModuleRegistry
+import net.ccbluex.liquidbounce.utils.client.SolidBounceInfo
+import net.ccbluex.liquidbounce.utils.client.logger
+import net.minecraftforge.api.distmarker.Dist
+import net.minecraftforge.common.MinecraftForge
+import net.minecraftforge.fml.common.Mod
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent
+import net.minecraftforge.fml.loading.FMLEnvironment
+import thedarkcolour.kotlinforforge.forge.MOD_BUS
+
+/**
+ * Solid-Bounce entry point (Forge @Mod, loaded via the Kotlin For Forge language adapter).
+ */
+@Mod("solidbounce")
+object SolidBounce {
+
+    const val MOD_ID = "solidbounce"
+
+    init {
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            MOD_BUS.addListener(::onClientSetup)
+            MinecraftForge.EVENT_BUS.register(ForgeEventBridge)
+            logger.info("${SolidBounceInfo.CLIENT_NAME} v${SolidBounceInfo.CLIENT_VERSION} constructing (${SolidBounceInfo.BASED_ON}, MC ${SolidBounceInfo.MC_VERSION}).")
+        } else {
+            logger.warn("Solid-Bounce is a client mod; skipping init on the dedicated server.")
+        }
+    }
+
+    private fun onClientSetup(event: FMLClientSetupEvent) {
+        event.enqueueWork {
+            // Touch the manager/feature objects so their event hooks register with the EventManager.
+            ModuleManager
+            CommandManager
+            HudRenderer
+
+            // Instantiate and register all modules.
+            ModuleRegistry.init()
+
+            logger.info("Solid-Bounce ready — ${ModuleManager.count} modules loaded.")
+        }
+    }
+}
