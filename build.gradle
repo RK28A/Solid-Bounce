@@ -1,0 +1,92 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+    id 'org.jetbrains.kotlin.jvm' version '2.0.0'
+}
+
+version = project.mod_version
+group = project.mod_group
+
+base {
+    archivesName = project.mod_id
+}
+
+// Forge 1.20.1 runs on Java 17. Gradle will download a matching toolchain if needed.
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+minecraft {
+    // Official (Mojang) mappings for 1.20.1.
+    mappings channel: project.mappings_channel, version: project.mappings_version
+
+    // Access transformer (created later when a module needs wider access).
+    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', project.mod_id
+            mods {
+                "${project.mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        server {
+            workingDirectory project.file('run/server')
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', project.mod_id
+            mods {
+                "${project.mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'Kotlin for Forge'
+        url = 'https://thedarkcolour.github.io/KotlinForForge/'
+    }
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
+
+    // Kotlin runtime + language adapter provided as a mod at runtime.
+    implementation "thedarkcolour:kotlinforforge:${project.kotlin_for_forge_version}"
+
+    // Mixin annotation processor (kept ready; activate the config in mods.toml when
+    // the first real mixin lands). Harmless while the mixin config is empty.
+    // annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        // Kotlin bytecode still needs -parameters style names free; nothing special here.
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+            'Specification-Title'     : project.mod_id,
+            'Specification-Vendor'    : 'Solid-Bounce',
+            'Specification-Version'   : '1',
+            'Implementation-Title'    : project.mod_name,
+            'Implementation-Version'  : project.mod_version,
+            'Implementation-Vendor'   : 'Solid-Bounce'
+            // The mixin config is registered via mods.toml ([[mixins]]); no manifest entry needed.
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
