@@ -126,5 +126,3 @@ object ModuleTrajectories : Module("Trajectories", Category.RENDER)
 /** TrueSight — reveals invisible entities/renders. TODO: MixinLivingEntityRenderer. */
 object ModuleTrueSight : Module("TrueSight", Category.RENDER)
 
-/** XRay — reveals ores by hiding other blocks. TODO: MixinBlock render + reload. */
-object ModuleXRay : Module("XRay", Category.RENDER)
