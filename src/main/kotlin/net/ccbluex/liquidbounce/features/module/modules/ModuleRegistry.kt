@@ -14,13 +14,19 @@ package net.ccbluex.liquidbounce.features.module.modules
 import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoClicker
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleCriticals
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleKillAura
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleSuperKnockback
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleVelocity
 import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleSpammer
+import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleFly
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleSneak
+import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleSpeed
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleSprint
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAntiAFK
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAutoRespawn
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAutoWalk
+import net.ccbluex.liquidbounce.features.module.modules.player.ModuleBlink
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleNoFall
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleESP
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleFullBright
@@ -40,14 +46,20 @@ object ModuleRegistry {
             ModuleAutoClicker,
             ModuleAutoWeapon,
             ModuleSuperKnockback,
+            ModuleKillAura,
+            ModuleCriticals,
+            ModuleVelocity,
             // Movement
             ModuleSprint,
             ModuleSneak,
+            ModuleSpeed,
+            ModuleFly,
             // Player
             ModuleAutoRespawn,
             ModuleNoFall,
             ModuleAntiAFK,
             ModuleAutoWalk,
+            ModuleBlink,
             // Render
             ModuleFullBright,
             ModuleESP,
