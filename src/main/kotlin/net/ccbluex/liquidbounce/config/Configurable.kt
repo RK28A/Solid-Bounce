@@ -21,6 +21,18 @@ class EnumValue<E : Enum<E>>(
 ) : Value<E>(name, value, ValueType.ENUM)
 
 /**
+ * A string value picked from a dynamic set of options — rendered as a dropdown in the ClickGUI.
+ * The options are supplied lazily because most of them come from game registries.
+ */
+class ListValue(
+    name: String,
+    value: String,
+    private val choicesProvider: () -> List<String>
+) : Value<String>(name, value, ValueType.LIST) {
+    val choices: List<String> get() = choicesProvider()
+}
+
+/**
  * A container of [Value]s. Modules, choices and nested groups are all Configurables.
  */
 open class Configurable(name: String) : Value<Configurable?>(name, null, ValueType.CONFIGURABLE) {
@@ -59,6 +71,10 @@ open class Configurable(name: String) : Value<Configurable?>(name, null, ValueTy
 
     fun key(name: String, default: Int): Value<Int> =
         register(Value(name, default, ValueType.KEY))
+
+    /** A dropdown of strings, options resolved lazily (e.g. from a registry). */
+    fun list(name: String, default: String, choices: () -> List<String>): ListValue =
+        register(ListValue(name, default, choices))
 
     inline fun <reified E : Enum<E>> enumChoice(name: String, default: E): EnumValue<E> =
         registerEnum(EnumValue(name, default, enumValues<E>()))

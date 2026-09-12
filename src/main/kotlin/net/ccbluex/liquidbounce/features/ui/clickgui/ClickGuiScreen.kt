@@ -19,6 +19,7 @@ import net.ccbluex.liquidbounce.config.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.Configurable
 import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.config.EnumValue
+import net.ccbluex.liquidbounce.config.ListValue
 import net.ccbluex.liquidbounce.config.RangedValue
 import net.ccbluex.liquidbounce.config.Value
 import net.ccbluex.liquidbounce.config.ValueType
@@ -35,6 +36,7 @@ private const val PANEL_WIDTH = 112
 private const val HEADER_HEIGHT = 14
 private const val ROW_HEIGHT = 12
 private const val COLUMNS = 5
+private const val DROPDOWN_ROWS = 10
 private const val MARGIN = 6
 
 private const val COLOR_PANEL_BG = 0xC0101014.toInt()
@@ -71,6 +73,12 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
     /** Module currently waiting for a key to be bound. */
     private var bindingModule: Module? = null
 
+    /** Currently open dropdown (ListValue), if any. */
+    private var dropdown: ListValue? = null
+    private var dropdownX = 0
+    private var dropdownY = 0
+    private var dropdownScroll = 0
+
     override fun isPauseScreen(): Boolean = false
 
     override fun render(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
@@ -80,6 +88,8 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
             renderPanel(guiGraphics, panel, mouseX, mouseY)
         }
 
+        renderDropdown(guiGraphics, mouseX, mouseY)
+
         bindingModule?.let {
             guiGraphics.drawString(
                 font, "Press a key to bind '${it.configurableName}' (ESC to unbind)",
@@ -88,6 +98,52 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick)
+    }
+
+    private fun dropdownRows(value: ListValue): List<String> =
+        value.choices.drop(dropdownScroll).take(DROPDOWN_ROWS)
+
+    private fun renderDropdown(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int) {
+        val value = dropdown ?: return
+        val rows = dropdownRows(value)
+        val height = rows.size * ROW_HEIGHT + 2
+
+        guiGraphics.fill(dropdownX, dropdownY, dropdownX + PANEL_WIDTH, dropdownY + height, 0xF00C0C10.toInt())
+        var y = dropdownY + 1
+        for (choice in rows) {
+            if (inside(mouseX.toDouble(), mouseY.toDouble(), dropdownX, y, PANEL_WIDTH, ROW_HEIGHT)) {
+                guiGraphics.fill(dropdownX, y, dropdownX + PANEL_WIDTH, y + ROW_HEIGHT, COLOR_ROW_HOVER)
+            }
+            guiGraphics.drawString(
+                font, choice, dropdownX + 3, y + 2,
+                if (choice == value.value) COLOR_ACCENT else COLOR_TEXT, true
+            )
+            y += ROW_HEIGHT
+        }
+
+        if (value.choices.size > DROPDOWN_ROWS) {
+            guiGraphics.drawString(
+                font, "scroll (${dropdownScroll + 1}/${value.choices.size})",
+                dropdownX + 3, dropdownY + height + 1, COLOR_TEXT_DIM, true
+            )
+        }
+    }
+
+    /** Returns true when the click was consumed by an open dropdown. */
+    private fun handleDropdownClick(mouseX: Double, mouseY: Double): Boolean {
+        val value = dropdown ?: return false
+        var y = dropdownY + 1
+        for (choice in dropdownRows(value)) {
+            if (inside(mouseX, mouseY, dropdownX, y, PANEL_WIDTH, ROW_HEIGHT)) {
+                value.set(choice)
+                dropdown = null
+                return true
+            }
+            y += ROW_HEIGHT
+        }
+        // Clicking anywhere else simply closes it.
+        dropdown = null
+        return true
     }
 
     private fun renderPanel(guiGraphics: GuiGraphics, panel: ClickGuiPanel, mouseX: Int, mouseY: Int) {
@@ -140,6 +196,10 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
     }
 
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
+        if (handleDropdownClick(mouseX, mouseY)) {
+            return true
+        }
+
         for (panel in ClickGuiState.panels) {
             val x = panel.x
             var y = panel.y
@@ -172,7 +232,16 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
                 if (panel.expanded.contains(module.configurableName)) {
                     for (value in optionRows(module)) {
                         if (inside(mouseX, mouseY, x, y, PANEL_WIDTH, ROW_HEIGHT)) {
-                            onValueClicked(value, button)
+                            if (value is ListValue) {
+                                dropdown = value
+                                dropdownX = x
+                                dropdownY = y + ROW_HEIGHT
+                                dropdownScroll = value.choices.indexOf(value.value)
+                                    .coerceAtLeast(0)
+                                    .coerceAtMost((value.choices.size - DROPDOWN_ROWS).coerceAtLeast(0))
+                            } else {
+                                onValueClicked(value, button)
+                            }
                             return true
                         }
                         y += ROW_HEIGHT
@@ -202,6 +271,12 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
     }
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, delta: Double): Boolean {
+        dropdown?.let { value ->
+            val maxScroll = (value.choices.size - DROPDOWN_ROWS).coerceAtLeast(0)
+            dropdownScroll = (dropdownScroll - delta.toInt()).coerceIn(0, maxScroll)
+            return true
+        }
+
         for (panel in ClickGuiState.panels) {
             var y = panel.y + HEADER_HEIGHT
             if (!panel.open) continue
@@ -292,6 +367,7 @@ class ClickGuiScreen : Screen(Component.literal("ClickGUI")) {
         ValueType.FLOAT -> String.format("%.2f", value.value as Float)
         ValueType.ENUM -> (value.value as Enum<*>).name
         ValueType.KEY -> keyName(value.value as Int)
+        ValueType.LIST -> value.value as String
         ValueType.INT_RANGE -> (value.value as IntRange).let { "${it.first}-${it.last}" }
         else -> value.value.toString()
     }

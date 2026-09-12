@@ -54,8 +54,16 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
     first, narrowed to one by the second).
   - From there it searches drop counts, simulating `EnchantmentHelper.getEnchantmentCost` +
     `selectEnchantment` per candidate, and reports the first match.
+  - **Three enchantment dropdowns** (Enchantment1/2/3 + a level each): a table offer is a *list*
+    (a main enchantment plus randomly added extras), so you can demand a whole combination and it
+    searches for a roll that contains all of them at once. `none` leaves a dropdown unused.
+  - **AutoDrop** throws the planned number of stacks for you (via `LocalPlayer.drop`, the same
+    path as the vanilla drop key), a configurable number per tick, and stops if you run out.
+  - When a plan is found it prints **all three slots** of the predicted roll, so you see exactly
+    what you are about to get.
   - Drops are counted automatically from outgoing packets; the brute force runs off-thread.
-    Options: Enchantment, Level, Slot (0 = any), Bookshelves, MaxDrops. `.enchant` re-prints it.
+    Options: Enchantment1-3, Level1-3, Slot (0 = any), Bookshelves, MaxDrops, AutoDrop,
+    DropsPerTick. `.enchant` re-prints the plan.
 
 > UI note: upstream LiquidBounce nextgen renders its interface through an embedded browser
 > (JCEF + the `src-theme` Svelte frontend) rather than a native Minecraft GUI. Porting that
