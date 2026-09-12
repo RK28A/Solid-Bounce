@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Forge / MC dev
+run/
+run/server/
+logs/
+*.log
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+.vscode/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local reference clones (not part of the mod)
+/lb-ref-*/
