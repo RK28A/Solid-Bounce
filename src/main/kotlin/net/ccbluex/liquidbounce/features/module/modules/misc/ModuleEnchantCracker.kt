@@ -10,6 +10,7 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
+import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.events.TransferOrigin
 import net.ccbluex.liquidbounce.event.handler
@@ -20,22 +21,27 @@ import net.ccbluex.liquidbounce.utils.enchant.EnchantCracker
 import net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
 import net.minecraft.world.inventory.EnchantmentMenu
+import net.minecraft.world.item.ItemStack
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * EnchantCracker — works out how many items you need to throw on the ground so the enchanting
+ * EnchantCracker — works out how many item stacks you must throw on the ground so the enchanting
  * table offers the enchantment you want.
  *
- * Usage:
- *  1. Enable the module and open an enchanting table — the seed is read off the wire.
- *  2. Enchant one item. That re-rolls the seed and locks the RNG state (the first observation
- *     leaves 65536 candidates, the second narrows it to one).
- *  3. Set Enchantment/Level/Bookshelves and the module reports "throw N items".
+ * Based on the mechanics documented by https://github.com/Earthcomputer/EnchantmentCracker :
+ * the server only reveals 12 bits of the xpSeed, so the full seed is brute-forced against the
+ * levels and clues on screen; two consecutive seeds then pin down the player's 48-bit LCG state,
+ * and each dropped stack advances that LCG by 4 steps.
  *
- * Every drop you make afterwards is counted automatically, so the advice stays in sync.
+ * Workflow:
+ *  1. Enable it, put the item in an enchanting table — the first seed gets cracked.
+ *  2. Enchant one item. The second seed locks the player RNG.
+ *  3. It then prints "throw N item(s), then enchant".
  */
 object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
 
-    /** The EnchantmentMenu syncs its seed as data slot 3 (0-2 are the three level costs). */
+    /** EnchantmentMenu syncs the (masked) seed as data slot 3; 0-2 are the three level costs. */
     private const val SEED_DATA_SLOT = 3
 
     private val enchantment by text("Enchantment", "sharpness")
@@ -44,10 +50,23 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
     private val bookshelves by int("Bookshelves", 15, 0..15)
     private val maxDrops by int("MaxDrops", 300, 1..5000)
 
-    /** Possible states of the player's LCG right now. */
-    private var candidates: LongArray = LongArray(0)
+    // --- cracking state -------------------------------------------------------------------
+
+    private var reportedSeed: Int? = null
+    private var lastSignature: String? = null
+
+    /** The most recent fully-cracked xpSeed. */
+    private var lastXpSeed: Int? = null
+
+    /** Possible states of the player's LCG right now (size 1 == locked). */
+    private var playerSeeds: LongArray = LongArray(0)
+
     private var dropsSinceSeed = 0
-    private var lastSeed: Int? = null
+
+    private val cracking = AtomicBoolean(false)
+    private val messages = ConcurrentLinkedQueue<String>()
+
+    // --- events ---------------------------------------------------------------------------
 
     @Suppress("unused")
     val onPacket = handler<PacketEvent> { event ->
@@ -55,9 +74,7 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
             TransferOrigin.RECEIVE -> {
                 val packet = event.packet
                 if (packet is ClientboundContainerSetDataPacket && packet.id == SEED_DATA_SLOT) {
-                    if (mc.player?.containerMenu is EnchantmentMenu) {
-                        onSeedObserved(packet.value)
-                    }
+                    reportedSeed = packet.value
                 }
             }
 
@@ -75,49 +92,119 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
         }
     }
 
-    private fun onSeedObserved(seed: Int) {
-        if (seed == lastSeed) {
-            // The menu re-syncs the same seed whenever the input slot changes; ignore.
-            return
-        }
-        lastSeed = seed
-
-        if (candidates.isEmpty()) {
-            candidates = EnchantCracker.candidatesFor(seed)
-            chat("§bEnchantCracker§7: seed §f$seed§7 — ${candidates.size} RNG candidates. Enchant once more to lock it.")
-        } else {
-            val narrowed = EnchantCracker.narrow(candidates, dropsSinceSeed, seed)
-            if (narrowed.isEmpty()) {
-                candidates = EnchantCracker.candidatesFor(seed)
-                chat("§bEnchantCracker§7: lost track (unexpected RNG use), restarting the crack.")
-            } else {
-                candidates = narrowed
-                chat("§bEnchantCracker§7: RNG locked — ${candidates.size} candidate(s).")
-            }
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        while (true) {
+            val message = messages.poll() ?: break
+            chat(message)
         }
 
-        dropsSinceSeed = 0
-        report()
+        val menu = mc.player?.containerMenu as? EnchantmentMenu ?: return@handler
+        val reported = reportedSeed ?: return@handler
+        if (menu.costs.all { it == 0 }) return@handler
+        if (cracking.get()) return@handler
+
+        val signature = buildString {
+            append(reported).append('|')
+            append(menu.costs.joinToString(",")).append('|')
+            append(menu.enchantClue.joinToString(",")).append('|')
+            append(menu.levelClue.joinToString(","))
+        }
+        if (signature == lastSignature) return@handler
+        lastSignature = signature
+
+        startCrack(
+            reported,
+            menu.costs.copyOf(),
+            menu.enchantClue.copyOf(),
+            menu.levelClue.copyOf(),
+            menu.getSlot(0).item.copy()
+        )
     }
 
-    /** Computes and prints the plan for the configured target. */
-    fun report() {
-        if (candidates.size != 1) {
-            chat("§bEnchantCracker§7: RNG not locked yet (${candidates.size} candidates). Enchant one item.")
+    // --- cracking -------------------------------------------------------------------------
+
+    private fun startCrack(reported: Int, costs: IntArray, clueIds: IntArray, clueLevels: IntArray, stack: ItemStack) {
+        if (stack.isEmpty) return
+        if (!cracking.compareAndSet(false, true)) return
+
+        val shelves = bookshelves
+        messages += "§bEnchantCracker§7: cracking the xpSeed (2^20 candidates)…"
+
+        Thread {
+            try {
+                val seeds = EnchantCracker.crackXpSeed(reported, costs, clueIds, clueLevels, shelves, stack)
+                when {
+                    seeds.isEmpty() ->
+                        messages += "§bEnchantCracker§7: no seed matched — check the §fBookshelves§7 setting."
+
+                    seeds.size > 1 ->
+                        messages += "§bEnchantCracker§7: ${seeds.size} seeds still possible, change the item and retry."
+
+                    else -> onXpSeedCracked(seeds[0])
+                }
+            } catch (e: Throwable) {
+                messages += "§bEnchantCracker§7: crack failed (${e.javaClass.simpleName})."
+            } finally {
+                cracking.set(false)
+            }
+        }.apply {
+            name = "SolidBounce-EnchantCracker"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun onXpSeedCracked(seed: Int) {
+        val previous = lastXpSeed
+        if (previous == seed) return
+        lastXpSeed = seed
+
+        if (previous == null) {
+            messages += "§bEnchantCracker§7: seed §f$seed§7 found. Enchant one item to lock the player RNG."
+            dropsSinceSeed = 0
             return
         }
-        val player = mc.player ?: return
-        val stack = player.mainHandItem
+
+        val candidates = if (playerSeeds.isEmpty()) {
+            EnchantCracker.playerSeedCandidates(previous)
+        } else {
+            playerSeeds
+        }
+
+        val narrowed = EnchantCracker.narrowPlayerSeeds(candidates, dropsSinceSeed, seed)
+        dropsSinceSeed = 0
+
+        if (narrowed.isEmpty()) {
+            playerSeeds = LongArray(0)
+            messages += "§bEnchantCracker§7: lost the RNG trail, restarting from this seed."
+            return
+        }
+
+        playerSeeds = narrowed
+        messages += "§bEnchantCracker§7: player RNG locked (${narrowed.size} candidate(s))."
+        messages += planMessage()
+    }
+
+    // --- planning -------------------------------------------------------------------------
+
+    /** Computes the advice line for the configured target. */
+    fun planMessage(): String {
+        if (playerSeeds.size != 1) {
+            return "§bEnchantCracker§7: RNG not locked yet (${playerSeeds.size} candidates) — enchant one item."
+        }
+        val player = mc.player ?: return "§bEnchantCracker§7: no player."
+
+        val menu = player.containerMenu as? EnchantmentMenu
+        val stack = menu?.getSlot(0)?.item?.takeIf { !it.isEmpty } ?: player.mainHandItem
         if (stack.isEmpty) {
-            chat("§bEnchantCracker§7: hold the item you want to enchant.")
-            return
+            return "§bEnchantCracker§7: put the item in the table (or hold it)."
         }
 
-        // Roll the state forward past the drops already made since the seed was observed,
-        // so the number we report is always "from now on".
-        val state = EnchantCracker.stateAfterDrops(candidates[0], dropsSinceSeed)
-
+        // Roll past the drops already made so the number we print is "from now on".
+        val state = EnchantCracker.stateAfterDrops(playerSeeds[0], dropsSinceSeed)
         val wantedSlot = if (slotOption == 0) null else slotOption - 1
+
         val plan = EnchantCracker.findDropsFor(
             state = state,
             enchantmentId = enchantment,
@@ -126,23 +213,20 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
             stack = stack,
             slot = wantedSlot,
             maxDrops = maxDrops
-        )
+        ) ?: return "§bEnchantCracker§7: no result for §f$enchantment $level§7 within $maxDrops drops."
 
-        if (plan == null) {
-            chat("§bEnchantCracker§7: no result for §f$enchantment $level§7 within $maxDrops drops.")
-            return
-        }
-
-        chat(
-            "§bEnchantCracker§7: throw §f${plan.drops}§7 more item(s), then enchant → " +
-                EnchantCracker.describe(plan.offer)
-        )
+        return "§bEnchantCracker§7: throw §f${plan.drops}§7 item stack(s), then enchant → ${EnchantCracker.describe(plan)}"
     }
 
+    fun report() = chat(planMessage())
+
     override fun enable() {
-        candidates = LongArray(0)
+        reportedSeed = null
+        lastSignature = null
+        lastXpSeed = null
+        playerSeeds = LongArray(0)
         dropsSinceSeed = 0
-        lastSeed = null
-        chat("§bEnchantCracker§7: open an enchanting table to read the seed.")
+        messages.clear()
+        chat("§bEnchantCracker§7: open an enchanting table with your item to start.")
     }
 }

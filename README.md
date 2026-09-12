@@ -41,16 +41,21 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
 
 ### Extras (beyond upstream)
 
-- **EnchantCracker** (Misc) — works out **how many items to throw on the ground** so the
-  enchanting table offers the enchantment you want.
-  - The server syncs the player's `xpSeed` to the client as data slot 3 of the enchantment menu,
-    so the seed is read straight off the wire (no mixin needed).
-  - Enchanting re-rolls that seed with `player.random.nextInt()`; each dropped item advances the
-    same LCG by exactly 4 steps.
-  - One observation leaves 2^16 candidate RNG states, the next enchant narrows it to one; from
-    there the module simulates vanilla's offer generation (`EnchantmentHelper.getEnchantmentCost`
-    + `selectEnchantment`) for each candidate drop count and reports the first match.
-  - Drops are counted automatically from outgoing packets. Use `.enchant` to re-print the plan.
+- **EnchantCracker** (Misc) — works out **how many item stacks to throw on the ground** so the
+  enchanting table offers the enchantment you want. Follows the mechanics documented by
+  [Earthcomputer/EnchantmentCracker](https://github.com/Earthcomputer/EnchantmentCracker):
+  - The server reveals only **12 bits** of the player's `xpSeed` (`xpSeed & -16`, truncated to a
+    short in data slot 3), so the full 32-bit seed is **brute-forced over 2^20 candidates** and
+    validated by replaying vanilla's offer generation against the three level costs *and* the
+    enchantment clues currently on screen.
+  - Enchanting re-rolls the seed with `player.random.nextInt()` (one LCG step); **each dropped
+    stack advances the same LCG by exactly 4 steps**.
+  - Two consecutive cracked seeds pin the player's **48-bit LCG state** (2^16 candidates from the
+    first, narrowed to one by the second).
+  - From there it searches drop counts, simulating `EnchantmentHelper.getEnchantmentCost` +
+    `selectEnchantment` per candidate, and reports the first match.
+  - Drops are counted automatically from outgoing packets; the brute force runs off-thread.
+    Options: Enchantment, Level, Slot (0 = any), Bookshelves, MaxDrops. `.enchant` re-prints it.
 
 > UI note: upstream LiquidBounce nextgen renders its interface through an embedded browser
 > (JCEF + the `src-theme` Svelte frontend) rather than a native Minecraft GUI. Porting that
