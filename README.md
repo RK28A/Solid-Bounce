@@ -39,6 +39,19 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
   toggle a module, right-click to expand its options, middle-click to rebind, scroll to adjust
   numbers, click to flip booleans / cycle enums.
 
+### Extras (beyond upstream)
+
+- **EnchantCracker** (Misc) — works out **how many items to throw on the ground** so the
+  enchanting table offers the enchantment you want.
+  - The server syncs the player's `xpSeed` to the client as data slot 3 of the enchantment menu,
+    so the seed is read straight off the wire (no mixin needed).
+  - Enchanting re-rolls that seed with `player.random.nextInt()`; each dropped item advances the
+    same LCG by exactly 4 steps.
+  - One observation leaves 2^16 candidate RNG states, the next enchant narrows it to one; from
+    there the module simulates vanilla's offer generation (`EnchantmentHelper.getEnchantmentCost`
+    + `selectEnchantment`) for each candidate drop count and reports the first match.
+  - Drops are counted automatically from outgoing packets. Use `.enchant` to re-print the plan.
+
 > UI note: upstream LiquidBounce nextgen renders its interface through an embedded browser
 > (JCEF + the `src-theme` Svelte frontend) rather than a native Minecraft GUI. Porting that
 > subsystem requires embedding MCEF plus the whole TypeScript frontend, so Solid-Bounce ships a

@@ -17,6 +17,7 @@ import net.ccbluex.liquidbounce.event.Listenable
 import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ModuleManager
+import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleEnchantCracker
 import net.ccbluex.liquidbounce.features.ui.clickgui.ClickGuiScreen
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.mc
@@ -46,10 +47,18 @@ object CommandManager : Listenable {
     private fun execute(args: List<String>) {
         when (args.getOrNull(0)?.lowercase()) {
             "", null, "help" -> {
-                chat("Commands: t/toggle <module>, bind <module> <key>, list [category], modules, panic, gui, save, load")
+                chat("Commands: t/toggle <module>, bind <module> <key>, list [category], modules, panic, gui, save, load, enchant")
             }
 
             "gui", "clickgui" -> mc.setScreen(ClickGuiScreen())
+
+            "enchant" -> {
+                if (ModuleEnchantCracker.enabled) {
+                    ModuleEnchantCracker.report()
+                } else {
+                    chat("Enable the EnchantCracker module first.")
+                }
+            }
 
             "save" -> {
                 ConfigSystem.save()
