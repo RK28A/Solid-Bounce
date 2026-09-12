@@ -1,0 +1,42 @@
+# Solid-Bounce — Forge 1.20.1 port of LiquidBounce (nextgen v0.1.0 base)
+# Uses the Kotlin For Forge language adapter.
+modLoader="kotlinforforge"
+loaderVersion="[4,)"
+license="GNU GPLv3"
+issueTrackerURL="https://github.com/rk28a/solid-bounce/issues"
+
+[[mods]]
+modId="solidbounce"
+version="0.1.0"
+displayName="Solid-Bounce"
+authors="CCBlueX (original LiquidBounce), Solid-Bounce contributors"
+description='''
+Forge 1.20.1 port of LiquidBounce (utility mod). Based on the nextgen v0.1.0 codebase,
+downported from 1.20.4 to 1.20.1 and re-wired onto the Forge event/loader system.
+'''
+
+[[dependencies.solidbounce]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.solidbounce]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.solidbounce]]
+    modId="kotlinforforge"
+    mandatory=true
+    versionRange="[4,)"
+    ordering="NONE"
+    side="CLIENT"
+
+# Mixin config is registered but currently declares no mixins (safe to load).
+# Real mixins are activated in a later step together with the Mixin AP in build.gradle.
+[[mixins]]
+config="solidbounce.mixins.json"
