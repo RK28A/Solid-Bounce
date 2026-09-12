@@ -22,7 +22,8 @@ import net.ccbluex.liquidbounce.features.module.modules.render.*
 import net.ccbluex.liquidbounce.features.module.modules.world.*
 
 /**
- * Registers the full LiquidBounce v0.1.0 module set (156 modules) with the [ModuleManager].
+ * Registers the full LiquidBounce v0.1.0 module set (156 modules) plus Solid-Bounce extras
+ * (currently EnchantCracker) with the [ModuleManager].
  *
  * Behavioral depth varies: many combat/movement/render/packet modules are fully wired, while
  * others are registered scaffolds whose deep logic is being filled in incrementally (each such
@@ -81,6 +82,8 @@ object ModuleRegistry {
             ModuleCapeTransfer, ModuleClickRecorder, ModuleDebugRecorder, ModuleFocus,
             ModuleFriendClicker, ModuleHideClient, ModuleKeepChatAfterDeath, ModuleNameProtect,
             ModuleNotifier, ModuleTeams,
+            // Extra (not in upstream v0.1.0)
+            ModuleEnchantCracker,
 
             // ---------------- Fun (4) ----------------
             ModuleDankBobbing, ModuleDerp, ModuleHandDerp, ModuleSkinDerp,
