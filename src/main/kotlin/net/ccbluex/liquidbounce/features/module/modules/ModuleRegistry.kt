@@ -13,11 +13,19 @@ package net.ccbluex.liquidbounce.features.module.modules
 
 import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoClicker
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleSuperKnockback
+import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleSpammer
+import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleSneak
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleSprint
+import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAntiAFK
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAutoRespawn
+import net.ccbluex.liquidbounce.features.module.modules.player.ModuleAutoWalk
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleNoFall
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleESP
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleFullBright
+import net.ccbluex.liquidbounce.features.module.modules.render.ModuleItemESP
+import net.ccbluex.liquidbounce.features.module.modules.world.ModuleAutoTool
 
 /**
  * Registers every built module with the [ModuleManager].
@@ -30,14 +38,24 @@ object ModuleRegistry {
         ModuleManager.addModules(
             // Combat
             ModuleAutoClicker,
+            ModuleAutoWeapon,
+            ModuleSuperKnockback,
             // Movement
             ModuleSprint,
-            // Render
-            ModuleFullBright,
-            ModuleESP,
+            ModuleSneak,
             // Player
             ModuleAutoRespawn,
             ModuleNoFall,
+            ModuleAntiAFK,
+            ModuleAutoWalk,
+            // Render
+            ModuleFullBright,
+            ModuleESP,
+            ModuleItemESP,
+            // World
+            ModuleAutoTool,
+            // Misc
+            ModuleSpammer,
         )
     }
 }
