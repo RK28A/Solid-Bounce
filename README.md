@@ -29,13 +29,61 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
     module-facing declaration style as upstream (`boolean(...)`, `int(...)`, `.listen { }`, `by`).
 - **Forge event bridge** dispatching: client tick, world render, GUI overlay render, key & mouse
   input, attack, chat send, world (dis)connect, and living-fall.
-- Chat command handler (prefix `.`): `.t <module>`, `.bind <module> <key>`, `.list`, `.panic`.
+- Chat command handler (prefix `.`): `.t <module>`, `.bind <module> <key>`, `.list`, `.panic`,
+  `.gui`, `.save`, `.load`.
 - HUD: client watermark + top-right module ArrayList.
-- First modules (Forge-native, no mixin required yet):
-  - **Combat:** AutoClicker
-  - **Movement:** Sprint
-  - **Render:** FullBright, ESP
-  - **Player:** AutoRespawn, NoFall
+- **Config storage**: all module state (enabled / bind / hidden) and every option value are
+  persisted to `<.minecraft>/solidbounce/modules.json` — saved on every toggle and on GUI close,
+  restored automatically at startup.
+- **ClickGUI** (default bind: **Right Shift**): draggable panels per category, left-click to
+  toggle a module, right-click to expand its options, middle-click to rebind, scroll to adjust
+  numbers, click to flip booleans / cycle enums.
+
+### Extras (beyond upstream)
+
+- **EnchantCracker** (Misc) — works out **how many item stacks to throw on the ground** so the
+  enchanting table offers the enchantment you want. Follows the mechanics documented by
+  [Earthcomputer/EnchantmentCracker](https://github.com/Earthcomputer/EnchantmentCracker):
+  - The server reveals only **12 bits** of the player's `xpSeed` (`xpSeed & -16`, truncated to a
+    short in data slot 3), so the full 32-bit seed is **brute-forced over 2^20 candidates** and
+    validated by replaying vanilla's offer generation against the three level costs *and* the
+    enchantment clues currently on screen.
+  - Enchanting re-rolls the seed with `player.random.nextInt()` (one LCG step); **each dropped
+    stack advances the same LCG by exactly 4 steps**.
+  - Two consecutive cracked seeds pin the player's **48-bit LCG state** (2^16 candidates from the
+    first, narrowed to one by the second).
+  - From there it searches drop counts, simulating `EnchantmentHelper.getEnchantmentCost` +
+    `selectEnchantment` per candidate, and reports the first match.
+  - **Three enchantment dropdowns** (Enchantment1/2/3 + a level each): a table offer is a *list*
+    (a main enchantment plus randomly added extras), so you can demand a whole combination and it
+    searches for a roll that contains all of them at once. `none` leaves a dropdown unused.
+  - **AutoDrop** throws the planned number of stacks for you (via `LocalPlayer.drop`, the same
+    path as the vanilla drop key), a configurable number per tick, and stops if you run out.
+  - When a plan is found it prints **all three slots** of the predicted roll, so you see exactly
+    what you are about to get.
+  - Drops are counted automatically from outgoing packets; the brute force runs off-thread.
+    Options: Enchantment1-3, Level1-3, Slot (0 = any), Bookshelves, MaxDrops, AutoDrop,
+    DropsPerTick. `.enchant` re-prints the plan.
+
+> UI note: upstream LiquidBounce nextgen renders its interface through an embedded browser
+> (JCEF + the `src-theme` Svelte frontend) rather than a native Minecraft GUI. Porting that
+> subsystem requires embedding MCEF plus the whole TypeScript frontend, so Solid-Bounce ships a
+> **native ClickGUI** that keeps the same model — same modules, categories, option names, binds
+> and config storage. The web theme remains a separate future effort.
+- **All 156 modules** of the LiquidBounce v0.1.0 set are present, registered, toggleable and
+  listed (8 categories: Combat, Movement, Player, Render, World, Exploit, Misc, Fun).
+  - Fully wired now (Forge events / packets / rotations): AutoClicker, AutoWeapon,
+    SuperKnockback, KillAura, Criticals, Velocity, Aimbot, Sprint, Sneak, Speed, Fly, AirJump,
+    HighJump, AutoRespawn, NoFall, AntiAFK, AutoWalk, Blink, FullBright, ESP, ItemESP, AutoTool,
+    Spammer.
+  - The remaining modules are registered **scaffolds** — they toggle and expose options, and
+    each documents the dedicated mixin/util still needed to complete its deep behavior
+    (movement/collision internals, render hooks, interaction/container utils, packet transforms).
+  - Purely offensive server-attack modules (ServerCrasher, Disabler, Kick, Damage) are registered
+    as **inert placeholders with no attack/DoS payload**.
+
+> Nothing here is compile-verified yet — the build sandbox blocks the Forge/Sponge Maven repos.
+> Build locally with JDK 17; report errors and they get fixed on the compiling base.
 
 ### Roadmap (next sessions)
 

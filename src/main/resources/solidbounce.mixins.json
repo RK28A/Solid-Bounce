@@ -1,10 +1,21 @@
 {
-    "required": false,
+    "required": true,
     "minVersion": "0.8.5",
     "package": "net.ccbluex.liquidbounce.injection.mixins",
     "compatibilityLevel": "JAVA_17",
-    "mixins": [],
-    "client": [],
+    "refmap": "solidbounce.refmap.json",
+    "mixins": [
+        "network.MixinConnection",
+        "world.MixinBlock",
+        "entity.MixinEntity"
+    ],
+    "client": [
+        "client.MixinMinecraft",
+        "client.MixinGameRenderer",
+        "client.MixinLocalPlayer",
+        "client.MixinMultiPlayerGameMode",
+        "client.MixinTimer"
+    ],
     "injectors": {
         "defaultRequire": 1
     }

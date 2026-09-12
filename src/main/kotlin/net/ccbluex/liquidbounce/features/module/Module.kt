@@ -14,6 +14,7 @@ package net.ccbluex.liquidbounce.features.module
 import net.ccbluex.liquidbounce.config.Choice
 import net.ccbluex.liquidbounce.config.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.Configurable
+import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.Listenable
 import net.ccbluex.liquidbounce.event.events.ToggleModuleEvent
@@ -57,7 +58,9 @@ open class Module(
             if (new) enable() else disable()
         }.onSuccess {
             if (!disableActivation) {
-                notification(configurableName, if (new) "enabled" else "disabled")
+                if (!ConfigSystem.loading) {
+                    notification(configurableName, if (new) "enabled" else "disabled")
+                }
                 EventManager.callEvent(ToggleModuleEvent(configurableName, new))
                 innerValues.filterIsInstance<ChoiceConfigurable>().forEach { it.newState(new) }
             }

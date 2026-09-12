@@ -11,6 +11,7 @@
  */
 package net.ccbluex.liquidbounce.integration.forge
 
+import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.features.command.CommandManager
 import net.ccbluex.liquidbounce.features.hud.HudRenderer
 import net.ccbluex.liquidbounce.features.module.ModuleManager
@@ -51,6 +52,10 @@ object SolidBounce {
 
             // Instantiate and register all modules.
             ModuleRegistry.init()
+
+            // Restore persisted module state / binds / option values.
+            ConfigSystem
+            ConfigSystem.load()
 
             logger.info("Solid-Bounce ready — ${ModuleManager.count} modules loaded.")
         }
