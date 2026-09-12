@@ -96,7 +96,7 @@ object ConfigSystem : Listenable {
             ValueType.BOOLEAN -> obj.addProperty(name, value.value as Boolean)
             ValueType.INT, ValueType.KEY -> obj.addProperty(name, value.value as Int)
             ValueType.FLOAT -> obj.addProperty(name, value.value as Float)
-            ValueType.TEXT -> obj.addProperty(name, value.value as String)
+            ValueType.TEXT, ValueType.LIST -> obj.addProperty(name, value.value as String)
             ValueType.ENUM -> obj.addProperty(name, (value.value as Enum<*>).name)
             ValueType.INT_RANGE -> {
                 val range = value.value as IntRange
@@ -135,7 +135,7 @@ object ConfigSystem : Listenable {
                 ValueType.BOOLEAN -> (value as Value<Boolean>).set(element.asBoolean)
                 ValueType.INT, ValueType.KEY -> (value as Value<Int>).set(element.asInt)
                 ValueType.FLOAT -> (value as Value<Float>).set(element.asFloat)
-                ValueType.TEXT -> (value as Value<String>).set(element.asString)
+                ValueType.TEXT, ValueType.LIST -> (value as Value<String>).set(element.asString)
                 ValueType.ENUM -> {
                     val enumValue = value as EnumValue<*>
                     val name = element.asString

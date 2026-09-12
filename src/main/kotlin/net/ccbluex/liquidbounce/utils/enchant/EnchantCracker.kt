@@ -191,20 +191,33 @@ object EnchantCracker {
 
     // ------------------------------------------------------------------ planning
 
+    /** One wanted enchantment. */
+    data class Requirement(val id: String, val minLevel: Int)
+
+    private fun listSatisfies(list: List<EnchantmentInstance>, requirements: List<Requirement>): Boolean =
+        requirements.all { requirement ->
+            val wanted = requirement.id.lowercase().removePrefix("minecraft:")
+            list.any { instance ->
+                val key = BuiltInRegistries.ENCHANTMENT.getKey(instance.enchantment)
+                key != null && key.path.equals(wanted, ignoreCase = true) && instance.level >= requirement.minLevel
+            }
+        }
+
     /**
-     * Finds the smallest number of item drops that makes [slot] (or any slot when null) offer
-     * [enchantmentId] at at least [minLevel].
+     * Finds the smallest number of item drops after which [slot] (or any slot when null) offers
+     * *every* requirement in [requirements] at once.
      */
     fun findDropsFor(
         state: Long,
-        enchantmentId: String,
-        minLevel: Int,
+        requirements: List<Requirement>,
         bookshelves: Int,
         stack: ItemStack,
         slot: Int?,
         maxDrops: Int
     ): DropPlan? {
-        val wanted = enchantmentId.lowercase().removePrefix("minecraft:")
+        if (requirements.isEmpty()) {
+            return null
+        }
 
         for (drops in 0..maxDrops) {
             val seed = predictSeed(state, drops)
@@ -215,16 +228,29 @@ object EnchantCracker {
                 val list = simulation.lists[candidateSlot]
                 if (list.isEmpty()) continue
 
-                val match = list.any { instance ->
-                    val key = BuiltInRegistries.ENCHANTMENT.getKey(instance.enchantment)
-                    key != null && key.path.equals(wanted, ignoreCase = true) && instance.level >= minLevel
-                }
-                if (match) {
+                if (listSatisfies(list, requirements)) {
                     return DropPlan(drops, seed, candidateSlot, simulation.costs[candidateSlot], list)
                 }
             }
         }
         return null
+    }
+
+    /** Renders all three slots of a seed, for showing the player exactly what they will get. */
+    fun describeAllSlots(xpSeed: Int, bookshelves: Int, stack: ItemStack): List<String> {
+        val simulation = simulateMenu(xpSeed, bookshelves, stack)
+        return (0..2).map { slot ->
+            val list = simulation.lists[slot]
+            if (list.isEmpty()) {
+                "  slot ${slot + 1}: (empty)"
+            } else {
+                val names = list.joinToString(", ") { instance ->
+                    val key = BuiltInRegistries.ENCHANTMENT.getKey(instance.enchantment)
+                    "${key?.path ?: "?"} ${instance.level}"
+                }
+                "  slot ${slot + 1} (${simulation.costs[slot]} lvl): $names"
+            }
+        }
     }
 
     fun describe(plan: DropPlan): String {

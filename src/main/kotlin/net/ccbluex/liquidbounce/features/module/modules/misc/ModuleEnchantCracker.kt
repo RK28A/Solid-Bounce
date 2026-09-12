@@ -18,6 +18,7 @@ import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.enchant.EnchantCracker
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
 import net.minecraft.world.inventory.EnchantmentMenu
@@ -44,11 +45,26 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
     /** EnchantmentMenu syncs the (masked) seed as data slot 3; 0-2 are the three level costs. */
     private const val SEED_DATA_SLOT = 3
 
-    private val enchantment by text("Enchantment", "sharpness")
-    private val level by int("Level", 5, 1..5)
+    /** Dropdown entry meaning "leave this slot unused". */
+    private const val NONE = "none"
+
+    /** Every enchantment id, for the dropdowns. */
+    private fun enchantmentChoices(): List<String> =
+        listOf(NONE) + BuiltInRegistries.ENCHANTMENT.keySet().map { it.path }.sorted()
+
+    private val enchant1 by list("Enchantment1", "sharpness") { enchantmentChoices() }
+    private val level1 by int("Level1", 5, 1..5)
+    private val enchant2 by list("Enchantment2", NONE) { enchantmentChoices() }
+    private val level2 by int("Level2", 1, 1..5)
+    private val enchant3 by list("Enchantment3", NONE) { enchantmentChoices() }
+    private val level3 by int("Level3", 1, 1..5)
+
     private val slotOption by int("Slot", 0, 0..3)
     private val bookshelves by int("Bookshelves", 15, 0..15)
     private val maxDrops by int("MaxDrops", 300, 1..5000)
+
+    private val autoDrop by boolean("AutoDrop", true)
+    private val dropsPerTick by int("DropsPerTick", 1, 1..5)
 
     // --- cracking state -------------------------------------------------------------------
 
@@ -62,6 +78,9 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
     private var playerSeeds: LongArray = LongArray(0)
 
     private var dropsSinceSeed = 0
+
+    /** Items still to be thrown by AutoDrop. */
+    private var autoDropRemaining = 0
 
     private val cracking = AtomicBoolean(false)
     private val messages = ConcurrentLinkedQueue<String>()
@@ -98,6 +117,8 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
             val message = messages.poll() ?: break
             chat(message)
         }
+
+        runAutoDrop()
 
         val menu = mc.player?.containerMenu as? EnchantmentMenu ?: return@handler
         val reported = reportedSeed ?: return@handler
@@ -205,17 +226,65 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
         val state = EnchantCracker.stateAfterDrops(playerSeeds[0], dropsSinceSeed)
         val wantedSlot = if (slotOption == 0) null else slotOption - 1
 
+        val requirements = wantedEnchantments()
+        if (requirements.isEmpty()) {
+            return "§bEnchantCracker§7: pick at least one enchantment in the dropdowns."
+        }
+
         val plan = EnchantCracker.findDropsFor(
             state = state,
-            enchantmentId = enchantment,
-            minLevel = level,
+            requirements = requirements,
             bookshelves = bookshelves,
             stack = stack,
             slot = wantedSlot,
             maxDrops = maxDrops
-        ) ?: return "§bEnchantCracker§7: no result for §f$enchantment $level§7 within $maxDrops drops."
+        ) ?: return "§bEnchantCracker§7: no tier offers " +
+            requirements.joinToString(" + ") { "${it.id} ${it.minLevel}" } +
+            " within $maxDrops drops."
+
+        // Show the player exactly what every slot will hold at that point.
+        for (line in EnchantCracker.describeAllSlots(plan.predictedSeed, bookshelves, stack)) {
+            messages += "§7$line"
+        }
+
+        if (autoDrop && plan.drops > 0) {
+            autoDropRemaining = plan.drops
+            return "§bEnchantCracker§7: auto-throwing §f${plan.drops}§7 item(s) → ${EnchantCracker.describe(plan)}"
+        }
 
         return "§bEnchantCracker§7: throw §f${plan.drops}§7 item stack(s), then enchant → ${EnchantCracker.describe(plan)}"
+    }
+
+    private fun wantedEnchantments(): List<EnchantCracker.Requirement> =
+        listOf(enchant1 to level1, enchant2 to level2, enchant3 to level3)
+            .filter { (id, _) -> id.isNotBlank() && !id.equals(NONE, ignoreCase = true) }
+            .map { (id, lvl) -> EnchantCracker.Requirement(id, lvl) }
+
+    /** Throws the planned number of item stacks, a few per tick. */
+    private fun runAutoDrop() {
+        if (autoDropRemaining <= 0) return
+
+        val player = mc.player ?: return
+
+        repeat(dropsPerTick) {
+            if (autoDropRemaining <= 0) return@repeat
+
+            if (player.mainHandItem.isEmpty) {
+                messages += "§bEnchantCracker§7: out of items to throw — hold a stack of junk."
+                autoDropRemaining = 0
+                return@repeat
+            }
+
+            // Same path the vanilla drop key takes: LocalPlayer.drop sends the
+            // ServerboundPlayerActionPacket and updates the client inventory. The server then
+            // spawns one item entity, advancing the player RNG by 4 steps.
+            player.drop(false)
+            autoDropRemaining--
+        }
+
+        if (autoDropRemaining == 0) {
+            messages += "§bEnchantCracker§7: done throwing — enchant now."
+        }
     }
 
     fun report() = chat(planMessage())
@@ -226,6 +295,7 @@ object ModuleEnchantCracker : Module("EnchantCracker", Category.MISC) {
         lastXpSeed = null
         playerSeeds = LongArray(0)
         dropsSinceSeed = 0
+        autoDropRemaining = 0
         messages.clear()
         chat("§bEnchantCracker§7: open an enchanting table with your item to start.")
     }
