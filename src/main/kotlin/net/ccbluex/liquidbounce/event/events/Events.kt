@@ -89,7 +89,16 @@ class ClientStartEvent : Event()
 class ToggleModuleEvent(val moduleName: String, val enabled: Boolean) : Event()
 
 /**
- * Placeholder for packet interception. Wired once the network mixin is activated.
+ * Direction of a packet relative to the client.
+ */
+enum class TransferOrigin { SEND, RECEIVE }
+
+/**
+ * Fired for every packet passing through the network connection (see MixinConnection).
+ * Cancellable — cancelling drops the packet.
  */
 @Nameable("Packet")
-class PacketEvent(val packet: Any, val state: EventState) : CancellableEvent()
+class PacketEvent(
+    val packet: net.minecraft.network.protocol.Packet<*>,
+    val origin: TransferOrigin
+) : CancellableEvent()
