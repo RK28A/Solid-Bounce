@@ -29,8 +29,21 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
     module-facing declaration style as upstream (`boolean(...)`, `int(...)`, `.listen { }`, `by`).
 - **Forge event bridge** dispatching: client tick, world render, GUI overlay render, key & mouse
   input, attack, chat send, world (dis)connect, and living-fall.
-- Chat command handler (prefix `.`): `.t <module>`, `.bind <module> <key>`, `.list`, `.panic`.
+- Chat command handler (prefix `.`): `.t <module>`, `.bind <module> <key>`, `.list`, `.panic`,
+  `.gui`, `.save`, `.load`.
 - HUD: client watermark + top-right module ArrayList.
+- **Config storage**: all module state (enabled / bind / hidden) and every option value are
+  persisted to `<.minecraft>/solidbounce/modules.json` — saved on every toggle and on GUI close,
+  restored automatically at startup.
+- **ClickGUI** (default bind: **Right Shift**): draggable panels per category, left-click to
+  toggle a module, right-click to expand its options, middle-click to rebind, scroll to adjust
+  numbers, click to flip booleans / cycle enums.
+
+> UI note: upstream LiquidBounce nextgen renders its interface through an embedded browser
+> (JCEF + the `src-theme` Svelte frontend) rather than a native Minecraft GUI. Porting that
+> subsystem requires embedding MCEF plus the whole TypeScript frontend, so Solid-Bounce ships a
+> **native ClickGUI** that keeps the same model — same modules, categories, option names, binds
+> and config storage. The web theme remains a separate future effort.
 - **All 156 modules** of the LiquidBounce v0.1.0 set are present, registered, toggleable and
   listed (8 categories: Combat, Movement, Player, Render, World, Exploit, Misc, Fun).
   - Fully wired now (Forge events / packets / rotations): AutoClicker, AutoWeapon,

@@ -14,8 +14,11 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.render
 
+import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
+import net.ccbluex.liquidbounce.features.ui.clickgui.ClickGuiScreen
+import org.lwjgl.glfw.GLFW
 
 /** Animation — custom item/hand animations. TODO: MixinHeldItemRenderer. */
 object ModuleAnimation : Module("Animation", Category.RENDER)
@@ -35,8 +38,19 @@ object ModuleBreadcrumbs : Module("Breadcrumbs", Category.RENDER)
 /** CameraClip — lets the third-person camera clip through blocks. TODO: MixinCamera. */
 object ModuleCameraClip : Module("CameraClip", Category.RENDER)
 
-/** ClickGui — the click-based settings GUI. TODO: Screen implementation. */
-object ModuleClickGui : Module("ClickGui", Category.RENDER)
+/** ClickGui — opens the click-based settings GUI (default bind: Right Shift). */
+object ModuleClickGui : Module(
+    "ClickGui",
+    Category.RENDER,
+    bind = GLFW.GLFW_KEY_RIGHT_SHIFT,
+    disableActivation = true
+) {
+    override fun enable() {
+        // Never pop the GUI open while a config is being applied at startup.
+        if (ConfigSystem.loading) return
+        mc.setScreen(ClickGuiScreen())
+    }
+}
 
 /** CombineMobs — stacks identical mobs visually. TODO: MixinEntityRenderDispatcher. */
 object ModuleCombineMobs : Module("CombineMobs", Category.RENDER)
