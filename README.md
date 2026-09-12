@@ -31,11 +31,20 @@ targets a much newer Minecraft (26.x) on Fabric. Instead the port:
   input, attack, chat send, world (dis)connect, and living-fall.
 - Chat command handler (prefix `.`): `.t <module>`, `.bind <module> <key>`, `.list`, `.panic`.
 - HUD: client watermark + top-right module ArrayList.
-- First modules (Forge-native, no mixin required yet):
-  - **Combat:** AutoClicker
-  - **Movement:** Sprint
-  - **Render:** FullBright, ESP
-  - **Player:** AutoRespawn, NoFall
+- **All 156 modules** of the LiquidBounce v0.1.0 set are present, registered, toggleable and
+  listed (8 categories: Combat, Movement, Player, Render, World, Exploit, Misc, Fun).
+  - Fully wired now (Forge events / packets / rotations): AutoClicker, AutoWeapon,
+    SuperKnockback, KillAura, Criticals, Velocity, Aimbot, Sprint, Sneak, Speed, Fly, AirJump,
+    HighJump, AutoRespawn, NoFall, AntiAFK, AutoWalk, Blink, FullBright, ESP, ItemESP, AutoTool,
+    Spammer.
+  - The remaining modules are registered **scaffolds** — they toggle and expose options, and
+    each documents the dedicated mixin/util still needed to complete its deep behavior
+    (movement/collision internals, render hooks, interaction/container utils, packet transforms).
+  - Purely offensive server-attack modules (ServerCrasher, Disabler, Kick, Damage) are registered
+    as **inert placeholders with no attack/DoS payload**.
+
+> Nothing here is compile-verified yet — the build sandbox blocks the Forge/Sponge Maven repos.
+> Build locally with JDK 17; report errors and they get fixed on the compiling base.
 
 ### Roadmap (next sessions)
 
