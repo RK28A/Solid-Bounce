@@ -6,9 +6,16 @@
     "refmap": "solidbounce.refmap.json",
     "mixins": [
         "network.MixinConnection",
-        "world.MixinBlock"
+        "world.MixinBlock",
+        "entity.MixinEntity"
     ],
-    "client": [],
+    "client": [
+        "client.MixinMinecraft",
+        "client.MixinGameRenderer",
+        "client.MixinLocalPlayer",
+        "client.MixinMultiPlayerGameMode",
+        "client.MixinTimer"
+    ],
     "injectors": {
         "defaultRequire": 1
     }
