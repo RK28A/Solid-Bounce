@@ -1,9 +1,23 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+        mavenCentral()
+    }
+    dependencies {
+        // MixinGradle: generates the refmap and reobfuscates mixin references for production jars.
+        classpath 'org.spongepowered:mixingradle:0.7.38'
+    }
+}
+
 plugins {
     id 'eclipse'
     id 'idea'
     id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
     id 'org.jetbrains.kotlin.jvm' version '2.0.0'
 }
+
+apply plugin: 'org.spongepowered.mixin'
 
 version = project.mod_version
 group = project.mod_group
@@ -15,6 +29,11 @@ base {
 // Forge 1.20.1 runs on Java 17. Gradle will download a matching toolchain if needed.
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+mixin {
+    add sourceSets.main, 'solidbounce.refmap.json'
+    config 'solidbounce.mixins.json'
 }
 
 minecraft {
@@ -64,9 +83,8 @@ dependencies {
     // Kotlin runtime + language adapter provided as a mod at runtime.
     implementation "thedarkcolour:kotlinforforge:${project.kotlin_for_forge_version}"
 
-    // Mixin annotation processor (kept ready; activate the config in mods.toml when
-    // the first real mixin lands). Harmless while the mixin config is empty.
-    // annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // Mixin annotation processor (generates the refmap for our Java mixins).
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {

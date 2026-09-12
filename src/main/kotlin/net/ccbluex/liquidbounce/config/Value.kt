@@ -19,7 +19,7 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 enum class ValueType {
-    BOOLEAN, INT, FLOAT, INT_RANGE, FLOAT_RANGE, TEXT, KEY, ENUM, CHOICE, CONFIGURABLE
+    BOOLEAN, INT, FLOAT, INT_RANGE, FLOAT_RANGE, TEXT, KEY, ENUM, LIST, CHOICE, CONFIGURABLE
 }
 
 /**
