@@ -52,7 +52,6 @@ object SolidBounceInfo {
     const val MC_VERSION = "1.20.1"
 }
 
-private const val PREFIX_BRACKET_COLOR = ChatFormatting.GRAY
 private val clientPrefix: MutableComponent =
     Component.literal("[").withStyle(ChatFormatting.GRAY)
         .append(Component.literal(SolidBounceInfo.CLIENT_NAME).withStyle(ChatFormatting.AQUA))
