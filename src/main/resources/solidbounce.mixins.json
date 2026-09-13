@@ -7,14 +7,18 @@
     "mixins": [
         "network.MixinConnection",
         "world.MixinBlock",
-        "entity.MixinEntity"
+        "entity.MixinEntity",
+        "entity.MixinLivingEntity",
+        "entity.MixinPlayer"
     ],
     "client": [
         "client.MixinMinecraft",
         "client.MixinGameRenderer",
         "client.MixinLocalPlayer",
         "client.MixinMultiPlayerGameMode",
-        "client.MixinTimer"
+        "client.MixinTimer",
+        "client.MixinClientPacketListener",
+        "client.MixinChatComponent"
     ],
     "injectors": {
         "defaultRequire": 1

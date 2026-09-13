@@ -11,6 +11,7 @@
  */
 package net.ccbluex.liquidbounce.injection.mixins.client;
 
+import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleTimerRange;
 import net.ccbluex.liquidbounce.features.module.modules.world.ModuleTimer;
 import net.minecraft.client.Timer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,8 +28,15 @@ public class MixinTimer {
 
     @Inject(method = "advanceTime", at = @At("RETURN"), cancellable = true, require = 0)
     private void solidbounce$advanceTime(long gameTime, CallbackInfoReturnable<Integer> cir) {
+        float speed = 1.0F;
         if (ModuleTimer.INSTANCE.getEnabled()) {
-            cir.setReturnValue(Math.round(cir.getReturnValue() * ModuleTimer.INSTANCE.timerSpeed()));
+            speed = ModuleTimer.INSTANCE.timerSpeed();
+        } else if (ModuleTimerRange.INSTANCE.getEnabled()) {
+            speed = ModuleTimerRange.INSTANCE.activeSpeed();
+        }
+
+        if (speed != 1.0F) {
+            cir.setReturnValue(Math.round(cir.getReturnValue() * speed));
         }
     }
 }

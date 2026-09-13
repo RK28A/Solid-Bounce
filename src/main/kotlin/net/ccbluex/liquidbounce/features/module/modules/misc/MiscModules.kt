@@ -8,52 +8,207 @@
  *
  * Original work Copyright (c) 2015 - 2024 CCBlueX.
  * Forge port modifications Copyright (c) 2025 Solid-Bounce contributors.
- *
- * Remaining Misc modules (scaffold: register/toggle/options; deep behavior pending noted util/mixin).
  */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
+import net.ccbluex.liquidbounce.event.events.ChatReceiveEvent
+import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.MouseButtonEvent
+import net.ccbluex.liquidbounce.event.events.PacketEvent
+import net.ccbluex.liquidbounce.event.events.TransferOrigin
+import net.ccbluex.liquidbounce.event.handler
+import net.ccbluex.liquidbounce.features.friend.FriendManager
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.mc
+import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket
+import net.minecraft.world.entity.player.Player
+import org.lwjgl.glfw.GLFW
 
-/** AntiBot — filters out likely bot players from targeting. TODO: heuristics + tab-list analysis. */
-object ModuleAntiBot : Module("AntiBot", Category.MISC)
+/** AntiBot — decides whether an entity is a fake player, so targeting can skip it. */
+object ModuleAntiBot : Module("AntiBot", Category.MISC) {
+    private val requireTabEntry by boolean("RequireTabEntry", true)
 
-/** AutoAccount — account automation helper. TODO: account manager integration. */
-object ModuleAutoAccount : Module("AutoAccount", Category.MISC)
+    /** Shared by the combat modules; always false while the module is off. */
+    fun isBot(target: Player): Boolean {
+        if (!enabled) return false
+        val connection = mc.connection ?: return false
 
-/** AutoChatGame — answers chat mini-games automatically. TODO: chat parsing. */
-object ModuleAutoChatGame : Module("AutoChatGame", Category.MISC)
+        if (requireTabEntry && connection.getPlayerInfo(target.uuid) == null) {
+            return true
+        }
+        return false
+    }
+}
 
-/** AutoConfig — auto-applies a config based on the server. TODO: config system + server detect. */
-object ModuleAutoConfig : Module("AutoConfig", Category.MISC)
+/** Teams — recognises teammates so they can be left alone. */
+object ModuleTeams : Module("Teams", Category.MISC) {
+    /** Shared by the combat modules; always false while the module is off. */
+    fun isTeammate(target: Player): Boolean {
+        if (!enabled) return false
+        val self = mc.player ?: return false
+        val ownTeam = self.team ?: return false
+        return ownTeam.isAlliedTo(target.team)
+    }
+}
 
-/** CapeTransfer — cosmetic cape handling. TODO: cape provider integration. */
-object ModuleCapeTransfer : Module("CapeTransfer", Category.MISC)
+/** AutoChatGame — answers simple chat mini-games automatically. */
+object ModuleAutoChatGame : Module("AutoChatGame", Category.MISC) {
+    private val delayTicks by int("Delay", 10, 0..100)
 
-/** ClickRecorder — records click patterns for analysis. TODO: input recorder. */
-object ModuleClickRecorder : Module("ClickRecorder", Category.MISC)
+    private val maths = Regex("""(\d+)\s*([+\-*x/])\s*(\d+)""")
+    private val typeThis = Regex("""type\s+["“']?([A-Za-z0-9]{3,24})["”']?""", RegexOption.IGNORE_CASE)
 
-/** DebugRecorder — records debug data. TODO: recorder + export. */
-object ModuleDebugRecorder : Module("DebugRecorder", Category.MISC)
+    private var pending: String? = null
+    private var countdown = 0
 
-/** Focus — reduces effects/animations while unfocused. TODO: window focus hook. */
-object ModuleFocus : Module("Focus", Category.MISC)
+    @Suppress("unused")
+    val onChat = handler<ChatReceiveEvent> { event ->
+        if (pending != null) return@handler
+        val message = event.message
 
-/** FriendClicker — helper for adding friends by clicking. TODO: friend manager + screen hook. */
-object ModuleFriendClicker : Module("FriendClicker", Category.MISC)
+        maths.find(message)?.let { match ->
+            val a = match.groupValues[1].toLongOrNull() ?: return@let
+            val b = match.groupValues[3].toLongOrNull() ?: return@let
+            val answer = when (match.groupValues[2]) {
+                "+" -> a + b
+                "-" -> a - b
+                "*", "x" -> a * b
+                "/" -> if (b == 0L) return@let else a / b
+                else -> return@let
+            }
+            pending = answer.toString()
+            countdown = delayTicks
+            return@handler
+        }
 
-/** HideClient — hides client-identifying signals. TODO: packet/brand spoof. */
-object ModuleHideClient : Module("HideClient", Category.MISC)
+        typeThis.find(message)?.let { match ->
+            pending = match.groupValues[1]
+            countdown = delayTicks
+        }
+    }
 
-/** KeepChatAfterDeath — keeps chat history after respawning. TODO: MixinChatHud. */
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val answer = pending ?: return@handler
+        if (countdown-- > 0) return@handler
+
+        pending = null
+        mc.connection?.sendChat(answer)
+    }
+
+    override fun disable() {
+        pending = null
+        countdown = 0
+    }
+}
+
+/** Focus — throttles the frame rate while the window is in the background. */
+object ModuleFocus : Module("Focus", Category.MISC) {
+    private val backgroundFps by int("BackgroundFps", 10, 1..60)
+
+    private var savedLimit: Int? = null
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val options = mc.options
+        if (!mc.isWindowActive) {
+            if (savedLimit == null) {
+                savedLimit = options.framerateLimit().get()
+            }
+            options.framerateLimit().set(backgroundFps)
+        } else {
+            savedLimit?.let {
+                options.framerateLimit().set(it)
+                savedLimit = null
+            }
+        }
+    }
+
+    override fun disable() {
+        savedLimit?.let {
+            mc.options.framerateLimit().set(it)
+            savedLimit = null
+        }
+    }
+}
+
+/** FriendClicker — middle-click a player to add or remove them from the friend list. */
+object ModuleFriendClicker : Module("FriendClicker", Category.MISC) {
+    @Suppress("unused")
+    val onMouse = handler<MouseButtonEvent> { event ->
+        if (event.button != GLFW.GLFW_MOUSE_BUTTON_MIDDLE || event.action != GLFW.GLFW_PRESS) {
+            return@handler
+        }
+        val target = mc.crosshairPickEntity as? Player ?: return@handler
+        val name = target.gameProfile.name ?: return@handler
+
+        event.cancelEvent()
+        val added = FriendManager.toggle(name)
+        chat(if (added) "§aAdded §f$name §ato friends." else "§cRemoved §f$name §cfrom friends.")
+    }
+}
+
+/** HideClient — stops the client from announcing its brand to the server. */
+object ModuleHideClient : Module("HideClient", Category.MISC) {
+    @Suppress("unused")
+    val onPacket = handler<PacketEvent> { event ->
+        if (event.origin != TransferOrigin.SEND) return@handler
+        if (event.packet is ServerboundCustomPayloadPacket) {
+            event.cancelEvent()
+        }
+    }
+}
+
+/** Notifier — warns about things worth reacting to (currently: low health). */
+object ModuleNotifier : Module("Notifier", Category.MISC) {
+    private val lowHealth by int("LowHealth", 6, 1..20)
+
+    private var warned = false
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val health = player.health
+        if (health <= lowHealth && !warned) {
+            warned = true
+            chat("§cNotifier§7: low health (§f${health.toInt()}§7).")
+        } else if (health > lowHealth) {
+            warned = false
+        }
+    }
+
+    override fun disable() {
+        warned = false
+    }
+}
+
+/** KeepChatAfterDeath — keeps the chat history on respawn. Driven by MixinChatComponent. */
 object ModuleKeepChatAfterDeath : Module("KeepChatAfterDeath", Category.MISC)
 
-/** NameProtect — censors your name in chat/HUD. TODO: MixinChatHud/text transform. */
+// --------------------------------------------------------------------------------------------
+// Still pending its dedicated hook.
+// --------------------------------------------------------------------------------------------
+
+/** NameProtect — censors your name in chat/HUD. TODO: chat component text transform. */
 object ModuleNameProtect : Module("NameProtect", Category.MISC)
 
-/** Notifier — shows notifications for game events. TODO: event → notification bridge. */
-object ModuleNotifier : Module("Notifier", Category.MISC)
+// --------------------------------------------------------------------------------------------
+// These rely on CCBlueX's own backend (capes, accounts, config CDN, telemetry). Without that
+// infrastructure there is nothing to port, so they stay registered but inert.
+// --------------------------------------------------------------------------------------------
 
-/** Teams — reads/uses team info. TODO: scoreboard/team analysis. */
-object ModuleTeams : Module("Teams", Category.MISC)
+/** AutoAccount — needs the upstream account manager. */
+object ModuleAutoAccount : Module("AutoAccount", Category.MISC)
+
+/** AutoConfig — needs the upstream config CDN. */
+object ModuleAutoConfig : Module("AutoConfig", Category.MISC)
+
+/** CapeTransfer — needs the upstream cape service. */
+object ModuleCapeTransfer : Module("CapeTransfer", Category.MISC)
+
+/** ClickRecorder — needs the upstream recording backend. */
+object ModuleClickRecorder : Module("ClickRecorder", Category.MISC)
+
+/** DebugRecorder — needs the upstream recording backend. */
+object ModuleDebugRecorder : Module("DebugRecorder", Category.MISC)
