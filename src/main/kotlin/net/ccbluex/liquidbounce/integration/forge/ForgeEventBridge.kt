@@ -13,6 +13,7 @@ package net.ccbluex.liquidbounce.integration.forge
 
 import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.AttackEvent
+import net.ccbluex.liquidbounce.event.events.ChatReceiveEvent
 import net.ccbluex.liquidbounce.event.events.ChatSendEvent
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.events.KeyEvent
@@ -25,6 +26,7 @@ import net.ccbluex.liquidbounce.utils.client.ClientTicks
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent
 import net.minecraftforge.client.event.ClientChatEvent
+import net.minecraftforge.client.event.ClientChatReceivedEvent
 import net.minecraftforge.client.event.InputEvent
 import net.minecraftforge.client.event.RenderGuiEvent
 import net.minecraftforge.client.event.RenderLevelStageEvent
@@ -87,6 +89,15 @@ object ForgeEventBridge {
     @SubscribeEvent
     fun onChatSend(event: ClientChatEvent) {
         val result = EventManager.callEvent(ChatSendEvent(event.message))
+        if (result.isCancelled) {
+            event.isCanceled = true
+        }
+    }
+
+    @SubscribeEvent
+    fun onChatReceived(event: ClientChatReceivedEvent) {
+        val component = event.message
+        val result = EventManager.callEvent(ChatReceiveEvent(component.string, component))
         if (result.isCancelled) {
             event.isCanceled = true
         }

@@ -12,9 +12,11 @@
 package net.ccbluex.liquidbounce.features.module.modules.world
 
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
+import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.utils.interaction.InteractionUtil
 import net.ccbluex.liquidbounce.utils.inventory.InventoryUtil
 import net.minecraft.core.BlockPos
@@ -238,8 +240,33 @@ object ModuleTimer : Module("Timer", Category.WORLD) {
 /** FastPlace — removes the block-place cooldown. Driven by MixinMinecraft's rightClickDelay reset. */
 object ModuleFastPlace : Module("FastPlace", Category.WORLD)
 
-/** NoSlowBreak — ignores mining slowdown. TODO: MixinPlayer getDestroySpeed. */
+/** NoSlowBreak — ignores the underwater/airborne mining penalty. Driven by MixinPlayer. */
 object ModuleNoSlowBreak : Module("NoSlowBreak", Category.WORLD)
 
-/** AutoDisable — disables other modules on configured conditions. TODO: condition system. */
-object ModuleAutoDisable : Module("AutoDisable", Category.WORLD)
+/** AutoDisable — turns every other module off when you die or leave the world. */
+object ModuleAutoDisable : Module("AutoDisable", Category.WORLD) {
+    private val onDeath by boolean("OnDeath", true)
+    private val onWorldLeave by boolean("OnWorldLeave", true)
+
+    @Suppress("unused")
+    val onWorldChange = handler<WorldChangeEvent>(ignoreCondition = true) { event ->
+        if (enabled && onWorldLeave && event.world == null) {
+            disableEverythingElse()
+        }
+    }
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        if (onDeath && player.health <= 0f) {
+            disableEverythingElse()
+        }
+    }
+
+    private fun disableEverythingElse() {
+        ModuleManager.forEach { module ->
+            if (module !== ModuleAutoDisable && module.enabled) {
+                module.enabled = false
+            }
+        }
+    }
+}
