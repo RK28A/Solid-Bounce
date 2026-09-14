@@ -114,18 +114,26 @@ tasks.named('jar', Jar).configure {
 // The refmap is what lets Mixin resolve the Mojang names written in our annotations against the
 // SRG names present at runtime. If it is missing or still holds Mojang names, every hook fails
 // to resolve — silently for require = 0 injections. Print it so the build log says which it is.
-tasks.named('reobfJar').configure {
+//
+// Matched lazily rather than via tasks.named: ForgeGradle registers reobfJar after this script is
+// evaluated, so looking it up here directly fails the build with "Task 'reobfJar' not found".
+def solidbounceJar = tasks.named('jar', Jar).flatMap { it.archiveFile }
+tasks.matching { it.name == 'reobfJar' }.configureEach {
     doLast {
-        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
-        new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
-            def entry = zip.getEntry('solidbounce.refmap.json')
-            if (entry == null) {
-                logger.lifecycle('[Solid-Bounce] REFMAP MISSING from the jar — no mixin hook can resolve at runtime.')
-            } else {
-                def text = zip.getInputStream(entry).getText('UTF-8')
-                logger.lifecycle("[Solid-Bounce] refmap (${text.length()} chars):")
-                logger.lifecycle(text)
+        try {
+            new java.util.zip.ZipFile(solidbounceJar.get().asFile).withCloseable { zip ->
+                def entry = zip.getEntry('solidbounce.refmap.json')
+                if (entry == null) {
+                    logger.lifecycle('[Solid-Bounce] REFMAP MISSING from the jar — no mixin hook can resolve at runtime.')
+                } else {
+                    def text = zip.getInputStream(entry).getText('UTF-8')
+                    logger.lifecycle("[Solid-Bounce] refmap (${text.length()} chars):")
+                    logger.lifecycle(text)
+                }
             }
+        } catch (Exception e) {
+            // Diagnostics must never be the reason a build fails.
+            logger.lifecycle("[Solid-Bounce] could not read the refmap: ${e}")
         }
     }
 }
