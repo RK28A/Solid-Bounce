@@ -18,9 +18,12 @@
         "client.MixinMultiPlayerGameMode",
         "client.MixinTimer",
         "client.MixinClientPacketListener",
-        "client.MixinChatComponent"
+        "client.MixinChatComponent",
+        "client.MixinAbstractClientPlayer",
+        "client.MixinCamera",
+        "client.MixinGui"
     ],
     "injectors": {
-        "defaultRequire": 1
+        "defaultRequire": 0
     }
 }

@@ -36,7 +36,7 @@ downported from 1.20.4 to 1.20.1 and re-wired onto the Forge event/loader system
     ordering="NONE"
     side="CLIENT"
 
-# Mixin config is registered but currently declares no mixins (safe to load).
-# Real mixins are activated in a later step together with the Mixin AP in build.gradle.
+# Injections use require = 0 throughout: if another mod (or a Forge patch) has reshaped a target
+# method, the injection is skipped and that one feature goes quiet, rather than crashing the game.
 [[mixins]]
 config="solidbounce.mixins.json"
