@@ -11,6 +11,8 @@
  */
 package net.ccbluex.liquidbounce.injection.mixins.entity;
 
+import net.ccbluex.liquidbounce.features.module.modules.exploit.ModuleNoPitchLimit;
+import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleNoPush;
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleNoWeb;
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleStep;
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleTrueSight;
@@ -20,7 +22,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -42,10 +46,29 @@ public class MixinEntity {
         }
     }
 
+    @Inject(method = "push(DDD)V", at = @At("HEAD"), cancellable = true, require = 0)
+    private void solidbounce$noPush(double x, double y, double z, CallbackInfo ci) {
+        if ((Object) this == Minecraft.getInstance().player && ModuleNoPush.INSTANCE.getEnabled()) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "isInvisible", at = @At("HEAD"), cancellable = true, require = 0)
     private void solidbounce$isInvisible(CallbackInfoReturnable<Boolean> cir) {
         if (ModuleTrueSight.INSTANCE.getEnabled()) {
             cir.setReturnValue(false);
         }
+    }
+
+    // ---- NoPitchLimit: vanilla clamps the pitch to +-90 in Entity.turn ----
+
+    @ModifyConstant(method = "turn", constant = @Constant(floatValue = 90.0F), require = 0)
+    private float solidbounce$maxPitch(float original) {
+        return ModuleNoPitchLimit.INSTANCE.getEnabled() ? 180.0F : original;
+    }
+
+    @ModifyConstant(method = "turn", constant = @Constant(floatValue = -90.0F), require = 0)
+    private float solidbounce$minPitch(float original) {
+        return ModuleNoPitchLimit.INSTANCE.getEnabled() ? -180.0F : original;
     }
 }

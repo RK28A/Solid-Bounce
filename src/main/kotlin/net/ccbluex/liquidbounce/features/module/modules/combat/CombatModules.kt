@@ -16,7 +16,10 @@ import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.events.TransferOrigin
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.features.friend.FriendManager
 import net.ccbluex.liquidbounce.features.module.Module
+import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleAntiBot
+import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleTeams
 import net.ccbluex.liquidbounce.utils.aiming.RotationUtil
 import net.ccbluex.liquidbounce.utils.interaction.InteractionUtil
 import net.ccbluex.liquidbounce.utils.inventory.InventoryUtil
@@ -40,6 +43,14 @@ private fun nearestTarget(range: Float, playersOnly: Boolean): LivingEntity? {
         .filter {
             it !== self && it.isAlive && it !is ArmorStand &&
                 self.distanceTo(it) <= range && (!playersOnly || it is Player)
+        }
+        .filterNot { entity ->
+            // Respect the friend list, the Teams module and the AntiBot filter.
+            entity is Player && (
+                FriendManager.isFriend(entity.gameProfile.name ?: "") ||
+                    ModuleTeams.isTeammate(entity) ||
+                    ModuleAntiBot.isBot(entity)
+                )
         }
         .minByOrNull { self.distanceTo(it) }
 }
@@ -306,7 +317,11 @@ object ModuleHitbox : Module("Hitbox", Category.COMBAT) {
 /** SwordBlock — 1.8-style visual sword blocking. TODO: held-item render mixin. */
 object ModuleSwordBlock : Module("SwordBlock", Category.COMBAT)
 
-/** TimerRange — timer boost only within combat range. TODO: shared Timer control. */
+/** TimerRange — speeds the game timer up only while an enemy is within range. */
 object ModuleTimerRange : Module("TimerRange", Category.COMBAT) {
     private val range by float("Range", 5.0f, 1.0f..8.0f)
+    private val speed by float("Speed", 1.5f, 0.1f..5.0f)
+
+    /** Read by MixinTimer: 1.0 (no change) unless a target is close. */
+    fun activeSpeed(): Float = if (nearestTarget(range, false) != null) speed else 1.0f
 }
