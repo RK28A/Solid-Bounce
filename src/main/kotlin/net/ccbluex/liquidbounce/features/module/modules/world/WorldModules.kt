@@ -248,8 +248,10 @@ object ModuleAutoDisable : Module("AutoDisable", Category.WORLD) {
     private val onDeath by boolean("OnDeath", true)
     private val onWorldLeave by boolean("OnWorldLeave", true)
 
+    // Not named onWorldChange: Module already declares a handler under that name, and a property
+    // of the same name in a subclass hides it, which Kotlin rejects.
     @Suppress("unused")
-    val onWorldChange = handler<WorldChangeEvent>(ignoreCondition = true) { event ->
+    val worldLeaveHandler = handler<WorldChangeEvent>(ignoreCondition = true) { event ->
         if (enabled && onWorldLeave && event.world == null) {
             disableEverythingElse()
         }
