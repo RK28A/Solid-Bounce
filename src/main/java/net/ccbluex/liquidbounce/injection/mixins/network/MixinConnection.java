@@ -15,12 +15,11 @@ import io.netty.channel.ChannelHandlerContext;
 import net.ccbluex.liquidbounce.event.EventManager;
 import net.ccbluex.liquidbounce.event.events.PacketEvent;
 import net.ccbluex.liquidbounce.event.events.TransferOrigin;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.PacketFlow;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -33,10 +32,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(Connection.class)
 public class MixinConnection {
-
-    @Shadow
-    @Final
-    public PacketFlow receiving;
 
     @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true,
         require = 0)
@@ -55,7 +50,11 @@ public class MixinConnection {
         require = 0
     )
     private void solidbounce$onReceive(ChannelHandlerContext ctx, Packet<?> packet, CallbackInfo ci) {
-        if (receiving == PacketFlow.CLIENTBOUND) {
+        // Only the client's own connection is of interest. Checking it against Minecraft's
+        // listener uses public API, so no @Shadow of Connection.receiving is needed — an
+        // unresolvable shadow would be a fatal InvalidMixinException rather than a skipped hook.
+        ClientPacketListener listener = Minecraft.getInstance().getConnection();
+        if (listener != null && listener.getConnection() == (Object) this) {
             PacketEvent event = new PacketEvent(packet, TransferOrigin.RECEIVE);
             EventManager.INSTANCE.callEvent(event);
             if (event.isCancelled()) {

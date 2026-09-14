@@ -17,7 +17,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.Constant;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -26,16 +27,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntity.class)
 public class MixinLivingEntity {
 
-    // public, not private: Mixin rejects a @Shadow whose visibility is narrower than the
-    // target field, and that rejection is fatal regardless of require = 0.
-    @Shadow
-    public int noJumpDelay;
-
-    @Inject(method = "aiStep", at = @At("HEAD"), require = 0)
-    private void solidbounce$clearJumpDelay(CallbackInfo ci) {
+    /**
+     * Vanilla sets {@code this.noJumpDelay = 10} in aiStep after a jump; rewriting that constant
+     * removes the cooldown. Deliberately not a {@code @Shadow} of the field: an unresolvable
+     * shadow throws InvalidMixinException and kills the game, whereas require = 0 lets a missed
+     * constant simply leave the feature inert.
+     */
+    @ModifyConstant(method = "aiStep", constant = @Constant(intValue = 10), require = 0)
+    private int solidbounce$clearJumpDelay(int original) {
         if ((Object) this == Minecraft.getInstance().player && ModuleNoJumpDelay.INSTANCE.getEnabled()) {
-            this.noJumpDelay = 0;
+            return 0;
         }
+        return original;
     }
 
     @Inject(method = "swing(Lnet/minecraft/world/InteractionHand;Z)V", at = @At("HEAD"), cancellable = true, require = 0)
