@@ -38,7 +38,8 @@ public class MixinConnection {
     @Final
     private PacketFlow receiving;
 
-    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true,
+        require = 0)
     private void solidbounce$onSend(Packet<?> packet, CallbackInfo ci) {
         PacketEvent event = new PacketEvent(packet, TransferOrigin.SEND);
         EventManager.INSTANCE.callEvent(event);
@@ -51,7 +52,7 @@ public class MixinConnection {
         method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V",
         at = @At("HEAD"),
         cancellable = true,
-        require = 1
+        require = 0
     )
     private void solidbounce$onReceive(ChannelHandlerContext ctx, Packet<?> packet, CallbackInfo ci) {
         if (receiving == PacketFlow.CLIENTBOUND) {
