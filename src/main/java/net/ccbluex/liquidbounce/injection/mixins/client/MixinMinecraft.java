@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class MixinMinecraft {
 
     @Shadow
-    private int rightClickDelay;
+    public int rightClickDelay;
 
     @Inject(method = "tick", at = @At("HEAD"), require = 0)
     private void solidbounce$tick(CallbackInfo ci) {
