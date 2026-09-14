@@ -74,8 +74,9 @@ open class Module(
 
     var hidden: Boolean by boolean("Hidden", hide).doNotInclude()
 
+    /** Shown by the ClickGUI when the module row is held down. */
     open val description: String
-        get() = ""
+        get() = ModuleDescriptions.of(configurableName)
 
     /** Optional tag displayed next to the module name in the HUD. */
     open val tag: String?
