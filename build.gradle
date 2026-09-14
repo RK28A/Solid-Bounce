@@ -31,11 +31,6 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
 }
 
-mixin {
-    add sourceSets.main, 'solidbounce.refmap.json'
-    config 'solidbounce.mixins.json'
-}
-
 minecraft {
     // Official (Mojang) mappings for 1.20.1.
     mappings channel: project.mappings_channel, version: project.mappings_version
@@ -66,6 +61,13 @@ minecraft {
             }
         }
     }
+}
+
+// Declared after the minecraft block so it sees the configured mappings: MixinGradle needs them
+// to reobfuscate the refmap from Mojang names to the SRG names the game actually runs on.
+mixin {
+    add sourceSets.main, 'solidbounce.refmap.json'
+    config 'solidbounce.mixins.json'
 }
 
 repositories {
@@ -107,4 +109,23 @@ tasks.named('jar', Jar).configure {
         ])
     }
     finalizedBy 'reobfJar'
+}
+
+// The refmap is what lets Mixin resolve the Mojang names written in our annotations against the
+// SRG names present at runtime. If it is missing or still holds Mojang names, every hook fails
+// to resolve — silently for require = 0 injections. Print it so the build log says which it is.
+tasks.named('reobfJar').configure {
+    doLast {
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+            def entry = zip.getEntry('solidbounce.refmap.json')
+            if (entry == null) {
+                logger.lifecycle('[Solid-Bounce] REFMAP MISSING from the jar — no mixin hook can resolve at runtime.')
+            } else {
+                def text = zip.getInputStream(entry).getText('UTF-8')
+                logger.lifecycle("[Solid-Bounce] refmap (${text.length()} chars):")
+                logger.lifecycle(text)
+            }
+        }
+    }
 }
