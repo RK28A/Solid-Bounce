@@ -26,8 +26,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntity.class)
 public class MixinLivingEntity {
 
+    // public, not private: Mixin rejects a @Shadow whose visibility is narrower than the
+    // target field, and that rejection is fatal regardless of require = 0.
     @Shadow
-    private int noJumpDelay;
+    public int noJumpDelay;
 
     @Inject(method = "aiStep", at = @At("HEAD"), require = 0)
     private void solidbounce$clearJumpDelay(CallbackInfo ci) {

@@ -36,7 +36,7 @@ public class MixinConnection {
 
     @Shadow
     @Final
-    private PacketFlow receiving;
+    public PacketFlow receiving;
 
     @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true,
         require = 0)
