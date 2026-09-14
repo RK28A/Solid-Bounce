@@ -46,14 +46,14 @@ object ModuleSkinDerp : Module("SkinDerp", Category.FUN) {
         ticks = 0
 
         for (part in PlayerModelPart.entries) {
-            mc.options.setModelPart(part, Random.nextBoolean())
+            mc.options.toggleModelPart(part, Random.nextBoolean())
         }
     }
 
     override fun disable() {
         // Put every layer back on so we do not leave the skin mangled.
         for (part in PlayerModelPart.entries) {
-            mc.options.setModelPart(part, true)
+            mc.options.toggleModelPart(part, true)
         }
     }
 }

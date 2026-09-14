@@ -16,6 +16,7 @@ import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket
 import net.minecraft.world.effect.MobEffects
 import net.minecraft.world.entity.projectile.AbstractArrow
 import net.minecraft.world.level.block.Blocks
@@ -375,14 +376,34 @@ object ModuleAutoDodge : Module("AutoDodge", Category.MOVEMENT) {
     }
 }
 
-/** PerfectHorseJump — always charges a mounted jump to full power. */
+/**
+ * PerfectHorseJump — always charges a mounted jump to full power.
+ *
+ * LocalPlayer.jumpRidingScale is getter-only, so the charge cannot be written directly. Vanilla
+ * turns that charge into a single START_RIDING_JUMP carrying `scale * 100`, so sending that packet
+ * with 100 on the key press is the same thing at full power.
+ */
 object ModulePerfectHorseJump : Module("PerfectHorseJump", Category.MOVEMENT) {
+    private var jumpWasDown = false
+
     @Suppress("unused")
     val tickHandler = handler<GameTickEvent> {
-        if (player.vehicle == null) return@handler
-        if (mc.options.keyJump.isDown) {
-            player.jumpRidingScale = 1.0f
+        val down = mc.options.keyJump.isDown
+        // Once per press: vanilla sends one START_RIDING_JUMP per jump, not one per tick.
+        if (down && !jumpWasDown && player.vehicle != null) {
+            mc.connection?.send(
+                ServerboundPlayerCommandPacket(
+                    player,
+                    ServerboundPlayerCommandPacket.Action.START_RIDING_JUMP,
+                    100
+                )
+            )
         }
+        jumpWasDown = down
+    }
+
+    override fun disable() {
+        jumpWasDown = false
     }
 }
 
