@@ -36,7 +36,10 @@ object SolidBounce {
     init {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             MOD_BUS.addListener(::onClientSetup)
-            MinecraftForge.EVENT_BUS.register(ForgeEventBridge)
+            // Registering the bridge must never be able to abort mod construction: a listener Forge
+            // rejects would otherwise show up as "Failed to create mod instance" and kill the game.
+            runCatching { MinecraftForge.EVENT_BUS.register(ForgeEventBridge) }
+                .onFailure { logger.error("Solid-Bounce: could not register the Forge event bridge.", it) }
             logger.info("${SolidBounceInfo.CLIENT_NAME} v${SolidBounceInfo.CLIENT_VERSION} constructing (${SolidBounceInfo.BASED_ON}, MC ${SolidBounceInfo.MC_VERSION}).")
         } else {
             logger.warn("Solid-Bounce is a client mod; skipping init on the dedicated server.")
@@ -45,17 +48,25 @@ object SolidBounce {
 
     private fun onClientSetup(event: FMLClientSetupEvent) {
         event.enqueueWork {
-            // Touch the manager/feature objects so their event hooks register with the EventManager.
-            ModuleManager
-            CommandManager
-            HudRenderer
+            // Nothing in here is worth crashing Minecraft over: a client mod that fails to set
+            // itself up should log why and let the game start, not take the whole launch down.
+            runCatching {
+                // Touch the manager/feature objects so their hooks register with the EventManager.
+                ModuleManager
+                CommandManager
+                HudRenderer
+            }.onFailure { logger.error("Solid-Bounce: failed to bring up the core managers.", it) }
 
-            // Instantiate and register all modules.
-            ModuleRegistry.init()
+            // Registers all modules; each category is isolated internally.
+            runCatching { ModuleRegistry.init() }
+                .onFailure { logger.error("Solid-Bounce: module registration failed.", it) }
 
-            // Restore persisted module state / binds / option values.
-            ConfigSystem
-            ConfigSystem.load()
+            // Restore persisted module state / binds / option values. A corrupt modules.json must
+            // not be fatal either — worst case the client starts with defaults.
+            runCatching {
+                ConfigSystem
+                ConfigSystem.load()
+            }.onFailure { logger.error("Solid-Bounce: failed to load the saved configuration.", it) }
 
             logger.info("Solid-Bounce ready — ${ModuleManager.count} modules loaded.")
         }

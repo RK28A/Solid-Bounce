@@ -71,6 +71,13 @@ class AttackEvent(val target: Entity) : CancellableEvent()
 class ChatSendEvent(val message: String) : CancellableEvent()
 
 /**
+ * Fired for every chat message received from the server. Cancellable (drops the message).
+ */
+@Nameable("ChatReceive")
+class ChatReceiveEvent(val message: String, val component: net.minecraft.network.chat.Component) :
+    CancellableEvent()
+
+/**
  * Fired when the player joins / changes world (or disconnects, [world] == null).
  */
 @Nameable("WorldChange")

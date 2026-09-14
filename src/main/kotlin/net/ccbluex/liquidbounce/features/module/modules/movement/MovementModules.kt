@@ -17,6 +17,8 @@ import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.Module
 import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.entity.projectile.AbstractArrow
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.phys.Vec3
 import kotlin.math.cos
 import kotlin.math.sin
@@ -239,8 +241,7 @@ object ModuleInventoryMove : Module("InventoryMove", Category.MOVEMENT) {
 }
 
 // --------------------------------------------------------------------------------------------
-// Modules below still need a dedicated collision/movement mixin; they register and toggle but
-// their effect lands with that mixin.
+// Mixin-driven modules (behaviour lives in the injection package).
 // --------------------------------------------------------------------------------------------
 
 /** NoSlow — removes item-use slowdown. Driven by MixinLocalPlayer's aiStep constant patch. */
@@ -248,6 +249,12 @@ object ModuleNoSlow : Module("NoSlow", Category.MOVEMENT)
 
 /** NoWeb — ignores cobweb slowdown. Driven by MixinEntity.makeStuckInBlock. */
 object ModuleNoWeb : Module("NoWeb", Category.MOVEMENT)
+
+/** NoPush — ignores entity push. Driven by MixinEntity.push. */
+object ModuleNoPush : Module("NoPush", Category.MOVEMENT)
+
+/** NoJumpDelay — removes the vanilla jump cooldown. Driven by MixinLivingEntity.aiStep. */
+object ModuleNoJumpDelay : Module("NoJumpDelay", Category.MOVEMENT)
 
 /** Step — step up full blocks. Driven by MixinEntity.maxUpStep. */
 object ModuleStep : Module("Step", Category.MOVEMENT) {
@@ -257,35 +264,143 @@ object ModuleStep : Module("Step", Category.MOVEMENT) {
     fun stepHeight(): Float = height
 }
 
-/** NoClip — passes through blocks. TODO: MixinEntity collision. */
-object ModuleNoClip : Module("NoClip", Category.MOVEMENT)
+// --------------------------------------------------------------------------------------------
 
-/** NoJumpDelay — removes the vanilla jump cooldown. TODO: MixinLivingEntity noJumpDelay. */
-object ModuleNoJumpDelay : Module("NoJumpDelay", Category.MOVEMENT)
+/** NoClip — walks through blocks by disabling the player's physics. */
+object ModuleNoClip : Module("NoClip", Category.MOVEMENT) {
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        player.noPhysics = true
+    }
 
-/** NoPush — ignores entity/block push. TODO: MixinEntity push. */
-object ModuleNoPush : Module("NoPush", Category.MOVEMENT)
+    override fun disable() {
+        mc.player?.noPhysics = false
+    }
+}
 
-/** LiquidWalk — walk on liquids. TODO: MixinEntity fluid collision. */
-object ModuleLiquidWalk : Module("LiquidWalk", Category.MOVEMENT)
+/** BlockBounce — bounces back up every time the player lands. */
+object ModuleBlockBounce : Module("BlockBounce", Category.MOVEMENT) {
+    private val power by float("Power", 0.42f, 0.1f..2.0f)
+    private var wasAirborne = false
 
-/** BlockWalk — walk on top of specific blocks. TODO: MixinEntity collision. */
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val onGround = player.onGround()
+        if (onGround && wasAirborne) {
+            val m = player.deltaMovement
+            player.setDeltaMovement(m.x, power.toDouble(), m.z)
+        }
+        wasAirborne = !onGround
+    }
+}
+
+/** ReverseStep — drops off ledges instantly instead of easing down. */
+object ModuleReverseStep : Module("ReverseStep", Category.MOVEMENT) {
+    private val speed by float("Speed", 0.5f, 0.1f..3.0f)
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        if (player.onGround()) return@handler
+        val m = player.deltaMovement
+        if (m.y < 0.0) {
+            player.setDeltaMovement(m.x, -speed.toDouble(), m.z)
+        }
+    }
+}
+
+/** LiquidWalk — keeps the player on the surface of liquids. */
+object ModuleLiquidWalk : Module("LiquidWalk", Category.MOVEMENT) {
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        if (!player.isInWater || player.isShiftKeyDown) return@handler
+        // Only hold the player up at the surface, otherwise let them sink normally.
+        if (world.getBlockState(player.blockPosition().above()).isAir) {
+            val m = player.deltaMovement
+            player.setDeltaMovement(m.x, 0.0, m.z)
+        }
+    }
+}
+
+/** AvoidHazards — cuts momentum before walking into something that hurts. */
+object ModuleAvoidHazards : Module("AvoidHazards", Category.MOVEMENT) {
+    private val hazards = setOf(
+        Blocks.LAVA, Blocks.FIRE, Blocks.SOUL_FIRE, Blocks.MAGMA_BLOCK,
+        Blocks.CACTUS, Blocks.SWEET_BERRY_BUSH, Blocks.WITHER_ROSE,
+        Blocks.CAMPFIRE, Blocks.SOUL_CAMPFIRE, Blocks.POWDER_SNOW
+    )
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val motion = player.deltaMovement
+        val ahead = player.blockPosition().offset(
+            Math.signum(motion.x).toInt(), 0, Math.signum(motion.z).toInt()
+        )
+
+        if (world.getBlockState(ahead).block in hazards ||
+            world.getBlockState(ahead.below()).block in hazards
+        ) {
+            player.setDeltaMovement(0.0, motion.y, 0.0)
+        }
+    }
+}
+
+/** AutoDodge — strafes away from arrows that are flying at the player. */
+object ModuleAutoDodge : Module("AutoDodge", Category.MOVEMENT) {
+    private val range by float("Range", 8.0f, 1.0f..30.0f)
+    private val strength by float("Strength", 0.35f, 0.1f..1.0f)
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        val threat = world.entitiesForRendering()
+            .filterIsInstance<AbstractArrow>()
+            .firstOrNull { arrow ->
+                if (player.distanceTo(arrow) > range) {
+                    false
+                } else {
+                    val motion = arrow.deltaMovement
+                    if (motion.lengthSqr() < 0.01) {
+                        false
+                    } else {
+                        // Is it actually heading towards us?
+                        val toPlayer = player.position().subtract(arrow.position()).normalize()
+                        motion.normalize().dot(toPlayer) > 0.9
+                    }
+                }
+            } ?: return@handler
+
+        // Sidestep perpendicular to the arrow's flight path.
+        val motion = threat.deltaMovement.normalize()
+        val m = player.deltaMovement
+        player.setDeltaMovement(-motion.z * strength, m.y, motion.x * strength)
+    }
+}
+
+/** PerfectHorseJump — always charges a mounted jump to full power. */
+object ModulePerfectHorseJump : Module("PerfectHorseJump", Category.MOVEMENT) {
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        if (player.vehicle == null) return@handler
+        if (mc.options.keyJump.isDown) {
+            player.jumpRidingScale = 1.0f
+        }
+    }
+}
+
+/** TerrainSpeed — scales movement with the friction of the ground being walked on. */
+object ModuleTerrainSpeed : Module("TerrainSpeed", Category.MOVEMENT) {
+    private val factor by float("Factor", 1.5f, 1.0f..3.0f)
+
+    @Suppress("unused")
+    val tickHandler = handler<GameTickEvent> {
+        if (!player.onGround()) return@handler
+        val friction = world.getBlockState(player.blockPosition().below()).block.friction
+        // Only boost on slippery ground (ice and friends).
+        if (friction <= 0.6f) return@handler
+
+        val m = player.deltaMovement
+        player.setDeltaMovement(m.x * factor, m.y, m.z * factor)
+    }
+}
+
+/** BlockWalk — walk on top of specific blocks. TODO: MixinEntity collision shape. */
 object ModuleBlockWalk : Module("BlockWalk", Category.MOVEMENT)
-
-/** BlockBounce — bounces off blocks. TODO: MixinPlayerMove. */
-object ModuleBlockBounce : Module("BlockBounce", Category.MOVEMENT)
-
-/** ReverseStep — steps down instead of up. TODO: MixinEntity step. */
-object ModuleReverseStep : Module("ReverseStep", Category.MOVEMENT)
-
-/** AutoDodge — dodges incoming projectiles. TODO: projectile prediction util. */
-object ModuleAutoDodge : Module("AutoDodge", Category.MOVEMENT)
-
-/** AvoidHazards — steers away from harmful blocks. TODO: block-scan util. */
-object ModuleAvoidHazards : Module("AvoidHazards", Category.MOVEMENT)
-
-/** PerfectHorseJump — perfect horse jump charge. TODO: horse jump power hook. */
-object ModulePerfectHorseJump : Module("PerfectHorseJump", Category.MOVEMENT)
-
-/** TerrainSpeed — speed based on terrain. TODO: block friction hook. */
-object ModuleTerrainSpeed : Module("TerrainSpeed", Category.MOVEMENT)
